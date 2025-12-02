@@ -130,7 +130,7 @@ public partial class MatchZy
         }
 
         teamReadyOverride[(TeamEnum)teamNum] = true;
-        // TODO: Implement CheckLiveRequired
-        // CheckLiveRequired();
+        // Re‑evaluate whether the match should go live after forcing players ready.
+        CheckLiveRequired();
     }
 }

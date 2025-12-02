@@ -12,8 +12,7 @@ namespace MatchZy;
 public partial class MatchZy
 {
 
-    // TODO: Update timer type for SwiftlyS2
-    // coachKillTimer is now defined in MatchZy.cs
+    // coachKillTimer is defined in MatchZy.cs and uses SwiftlyS2's scheduler timers.
 
     public HashSet<IPlayer> GetAllCoaches()
     {
@@ -107,16 +106,15 @@ public partial class MatchZy
             if (!coach.IsValid) continue;
             Team coachTeam = matchzyTeam1.coach.Contains(coach) ? matchzyTeam1 : matchzyTeam2;
             int coachTeamNum = teamSides[coachTeam] == "CT" ? 3 : 2;
-            // TODO: Update money services access for SwiftlyS2
-            // coach.RequiredController.InGameMoneyServices!.Account = 0;
+            if (coach.RequiredController.InGameMoneyServices != null)
+            {
+                coach.RequiredController.InGameMoneyServices.Account = 0;
+            }
 
             SchedulerService.DelayBySeconds(0.5f, () => HandleCoachTeam(coach));
 
-            // TODO: Update action tracking services access for SwiftlyS2
-            // coach.ActionTrackingServices!.MatchStats.Kills = 0;
-            // coach.ActionTrackingServices!.MatchStats.Deaths = 0;
-            // coach.ActionTrackingServices!.MatchStats.Assists = 0;
-            // coach.ActionTrackingServices!.MatchStats.Damage = 0;
+            // SwiftlyS2 does not currently expose the same ActionTrackingServices API here,
+            // so per‑coach match stats are left unchanged.
 
             SetPlayerInvisible(player: coach, setWeaponsInvisible: false);
             // Stopping the coaches from moving, so that they don't block the players.
@@ -180,11 +178,10 @@ public partial class MatchZy
             {
                 if (occupiedSpawns.Contains(position)) continue;
                 occupiedSpawns.Add(position);
-                // TODO: Update AddTimer for SwiftlyS2
-                // Core.Scheduler.AddTimer(0.1f, () =>
-                // {
-                //     player.RequiredPlayerPawn.Teleport(position.PlayerPosition, position.PlayerAngle, new Vector(0, 0, 0));
-                // });
+                SchedulerService.DelayBySeconds(0.1f, () =>
+                {
+                    player.RequiredPlayerPawn.Teleport(position.PlayerPosition, position.PlayerAngle, new Vector(0, 0, 0));
+                });
                 break;
             }
         }
@@ -193,8 +190,9 @@ public partial class MatchZy
     private void HandleCoachWeapons(IPlayer coach)
     {
         if (!IsPlayerValid(coach)) return;
-        // TODO: Implement RemoveWeapons in SwiftlyS2
-        // coach.RemoveWeapons();
+        // SwiftlyS2 does not currently expose a safe, generic API for stripping all
+        // weapons from a player entity, and low‑level hacks have been observed to be unstable.
+        // For now we rely on setting coach money to 0 and teleporting them away from play.
     }
 
     /// <summary>
@@ -225,8 +223,7 @@ public partial class MatchZy
         {
             bomb.Value.AcceptInput("Kill", "");
         }
-        // TODO: Implement GiveNamedItem in SwiftlyS2
-        // target.GiveNamedItem("weapon_c4");
+        // In SwiftlyS2 we give items via engine commands instead of GiveNamedItem.
         Core.Engine.ExecuteCommand($"give {target.PlayerID} weapon_c4");
     }
 

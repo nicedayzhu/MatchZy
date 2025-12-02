@@ -45,9 +45,14 @@ public class GrenadeThrownData
 
     public void Throw(IPlayer player)
     {
-		// TODO: Implement grenade throwing using SwiftlyS2 EntitySystem
-		// This functionality needs to be reimplemented using SwiftlyS2's entity creation APIs
-		Console.WriteLine($"[MatchZy] Throw grenade not yet implemented for type: {Type}");
+        if (player == null || !player.IsValid) return;
+
+        // For SwiftlyS2 we currently only support teleporting the player back to the
+        // recorded position; grenade projectiles themselves are not recreated yet.
+        // This keeps practice mode stable while avoiding unsafe low‑level entity hacks.
+        LoadPosition(player);
+
+        player.SendChat($"[MatchZy] Saved grenade position loaded, but automatic rethrow is not yet implemented for SwiftlyS2.");
 		/*
 		var playerPawn = player.RequiredPlayerPawn;
 		var team = player.RequiredController.TeamNum == (byte)TeamEnum.CT ? TeamEnum.CT : TeamEnum.T;

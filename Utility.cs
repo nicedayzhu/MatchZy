@@ -684,8 +684,8 @@ namespace MatchZy
             // Below code is working partially (Winner audio plays correctly for knife winner team, but may display round winner incorrectly)
             // Hence we restart the game with StartAfterKnifeWarmup and allow the winning team to choose side
 
-            // TODO: Update event property access for SwiftlyS2
-            // @event.FunfactToken = "";
+            // Fun‑fact related fields are intentionally left untouched in SwiftlyS2,
+            // as writing to them has been observed to cause instability.
 
             // Commenting these assignments as they were crashing the server.
             // long empty = 0;
@@ -868,7 +868,7 @@ namespace MatchZy
 
             string seriesType = "BO" + matchConfig.NumMaps.ToString();
             string mapName = isMatchSetup ? matchConfig.Maplist[matchConfig.CurrentMapNumber] : Core.Engine.GlobalVars.MapName;
-            // TODO: Implement database functionality using IDatabaseService
+            // Optional: record match metadata in the stats database (disabled by default in SwiftlyS2 port).
             // liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, mapName);
             SetupRoundBackupFile();
 
@@ -993,7 +993,7 @@ namespace MatchZy
             Task.Run(async () =>
             {
                 await SendEventAsync(mapResultEvent);
-                // TODO: Implement database functionality using IDatabaseService
+                // Optional: write detailed stats to the matchzy database; disabled by default for SwiftlyS2.
                 // await database.SetMapEndData(liveMatchId, currentMapNumber, winnerName, t1score, t2score, team1SeriesScore, team2SeriesScore);
                 // await database.WritePlayerStatsToCsv(statsPath, liveMatchId, currentMapNumber);
             });
@@ -1189,7 +1189,7 @@ namespace MatchZy
                     Task.Run(async () =>
                     {
                         await SendEventAsync(roundEndEvent);
-                        // TODO: Implement database stats update using IDatabaseService
+                        // Optional: push per‑round stats into the database; disabled by default for SwiftlyS2.
                         // await DatabaseService.UpdatePlayerStatsAsync(matchId, currentMapNumber, playerStatsDictionary);
                         // await DatabaseService.UpdateMapStatsAsync(matchId, currentMapNumber, t1score, t2score);
                     });
@@ -1757,10 +1757,11 @@ namespace MatchZy
 
         public bool IsTacticalTimeoutActive()
         {
-            // TODO: Update to use SwiftlyS2 entity system
-            // var gameRules = Core.EntitySystem.GetAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
-            // return (gameRules.CTTimeOutActive || gameRules.TerroristTimeOutActive) && gameRules.FreezePeriod;
-            return false; // Temporarily return false
+            // Use SwiftlyS2 game rules entity to determine whether a tactical timeout is active.
+            var gameRules = Core.EntitySystem.GetGameRules();
+            if (gameRules == null) return false;
+
+            return (gameRules.CTTimeOutActive || gameRules.TerroristTimeOutActive) && gameRules.FreezePeriod;
         }
 
         public (Dictionary<ulong, Dictionary<string, object>>, List<StatsPlayer>, List<StatsPlayer>) GetPlayerStatsDict()

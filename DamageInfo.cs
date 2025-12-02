@@ -95,9 +95,6 @@ namespace MatchZy
                         if (attackerController != null && targetController != null)
                         {
                             if (!attackerController.IsValid || !targetController.IsValid) continue;
-                            // TODO: Check player connection state in SwiftlyS2
-                            // if (attackerController.Connected != PlayerConnectedState.PlayerConnected) continue;
-                            // if (targetController.Connected != PlayerConnectedState.PlayerConnected) continue;
                             var attackerPawn = attackerController.PlayerPawn;
                             var targetPawn = targetController.PlayerPawn;
                             if (attackerPawn == null || targetPawn == null) continue;

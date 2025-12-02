@@ -1517,7 +1517,6 @@ namespace MatchZy
 
         public void DisplayPracticeTimerCenter(int playerId)
         {
-            // TODO: Update to use Core.PlayerManager
             var player = Core.PlayerManager.GetPlayer(playerId);
             if (player == null || !player.IsValid || !playerTimers.ContainsKey(playerId)) return;
             playerTimers[playerId].DisplayTimerCenter(player);

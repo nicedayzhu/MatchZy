@@ -136,17 +136,16 @@ namespace MatchZy
         // User command - action map
         // public Dictionary<string, Action<CCSPlayerController?, CommandInfo?>>? commandActions;
 
-        // SQLite/MySQL Database 
+        // SQLite/MySQL Database (via SwiftlyS2 IDatabaseService)
         private Database database = new();
     
         public override void Load(bool hotReload) {
             LoadAdmins();
 
-            // Initialize permissions.jsonc configuration (可选，权限也可以完全使用 SwiftlyS2 全局 permissions.jsonc 来管理)
-            Core.Configuration
-                .InitializeJsonWithModel<PermissionsConfiguration>("permissions.jsonc", "Permissions");
+            // Initialize permissions.jsonc configuration (示例配置，权限也可以完全使用 SwiftlyS2 全局 permissions.jsonc 来管理)
+            Core.Configuration.InitializeJsonWithModel<PermissionsConfiguration>("permissions.jsonc", "Permissions");
 
-            // Initialize database using SwiftlyS2 DatabaseService
+            // Initialize database using SwiftlyS2 DatabaseService (optional stats DB)
             database.SetLogger(Logger);
             database.SetDatabaseService(DatabaseService);
             database.InitializeDatabase(Core.PluginDataDirectory, Core.CSGODirectory);

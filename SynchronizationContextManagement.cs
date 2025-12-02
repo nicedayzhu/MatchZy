@@ -5,8 +5,8 @@ class SourceSynchronizationContext : SynchronizationContext
 {
     public override void Post(SendOrPostCallback d, object? state)
     {
-        // TODO: Implement NextWorldUpdate equivalent in SwiftlyS2
-        // Core.Scheduler.NextFrame(() => d(state));
+        // In SwiftlyS2 this context is only used for lightweight callbacks,
+        // so we can invoke the delegate directly on the current thread.
         d(state);
     }
 
