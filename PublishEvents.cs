@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 
 namespace MatchZy
@@ -12,14 +13,14 @@ namespace MatchZy
             {
                 if (string.IsNullOrEmpty(matchConfig.RemoteLogURL)) return;
 
-                Log($"[SendEventAsync] Sending Event: {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} on {matchConfig.RemoteLogURL}");
+                Logger.LogInformation($"[SendEventAsync] Sending Event: {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} on {matchConfig.RemoteLogURL}");
 
                 using var httpClient = new HttpClient();
                 using var jsonContent = new StringContent(JsonSerializer.Serialize(@event, @event.GetType()), Encoding.UTF8, "application/json");
 
                 string jsonString = await jsonContent.ReadAsStringAsync();
 
-                Log($"[SendEventAsync] SENDING DATA: {jsonString}");
+                Logger.LogInformation($"[SendEventAsync] SENDING DATA: {jsonString}");
 
                 if (!string.IsNullOrEmpty(matchConfig.RemoteLogHeaderKey) && !string.IsNullOrEmpty(matchConfig.RemoteLogHeaderValue))
                 {
@@ -30,16 +31,16 @@ namespace MatchZy
 
                 if (httpResponseMessage.IsSuccessStatusCode)
                 {
-                    Log($"[SendEventAsync] Sending {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} successful with status code: {httpResponseMessage.StatusCode}");
+                    Logger.LogInformation($"[SendEventAsync] Sending {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} successful with status code: {httpResponseMessage.StatusCode}");
                 }
                 else
                 {
-                    Log($"[SendEventAsync] Sending {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} failed with status code: {httpResponseMessage.StatusCode}, ResponseContent: {await httpResponseMessage.Content.ReadAsStringAsync()}");
+                    Logger.LogError($"[SendEventAsync] Sending {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} failed with status code: {httpResponseMessage.StatusCode}, ResponseContent: {await httpResponseMessage.Content.ReadAsStringAsync()}");
                 }
             }
             catch (Exception e)
             {
-                Log($"[SendEventAsync FATAL] An error occurred: {e.Message}");
+                Logger.LogError($"[SendEventAsync FATAL] An error occurred: {e.Message}");
             }
         }
     }

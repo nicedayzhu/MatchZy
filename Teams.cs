@@ -1,9 +1,9 @@
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
+using SwiftlyS2.Shared.Commands;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.SchemaDefinitions;
 using Newtonsoft.Json.Linq;
 using System.Text.Json.Serialization;
-using CounterStrikeSharp.API;
+using Microsoft.Extensions.Logging;
 
 namespace MatchZy
 {
@@ -26,7 +26,7 @@ namespace MatchZy
         public JToken? teamPlayers;
 
         [JsonIgnore, Newtonsoft.Json.JsonIgnore]
-        public HashSet<CCSPlayerController> coach = [];
+        public HashSet<IPlayer> coach = [];
 
         [JsonPropertyName("seriesscore")]
         public int seriesScore = 0;
@@ -34,28 +34,30 @@ namespace MatchZy
 
     public partial class MatchZy
     {
-        [ConsoleCommand("css_coach", "Sets coach for the requested team")]
-        public void OnCoachCommand(CCSPlayerController? player, CommandInfo command) 
+        [Command("coach", registerRaw: true)]
+        public void OnCoachCommand(ICommandContext context) 
         {
-            HandleCoachCommand(player, command.ArgString);
+            IPlayer? player = context.Sender;
+            HandleCoachCommand(player, string.Join(" ", context.Args));
         }
 
-        [ConsoleCommand("css_uncoach", "Sets coach for the requested team")]
-        public void OnUnCoachCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("uncoach", registerRaw: true)]
+        public void OnUnCoachCommand(ICommandContext context)
         {
-            if (player == null || !player.PlayerPawn.IsValid) return;
+            IPlayer? player = context.Sender;
+            if (player == null || !player.IsValid) return;
             if (isPractice) {
                 ReplyToUserCommand(player, "Uncoach command can only be used in match mode!");
                 return;
             }
 
             if (matchzyTeam1.coach.Contains(player)) {
-                player.Clan = "";
+                player.RequiredController.Clan = "";
                 matchzyTeam1.coach.Remove(player);
                 SetPlayerVisible(player);
             }
             else if (matchzyTeam2.coach.Contains(player)) {
-                player.Clan = "";
+                player.RequiredController.Clan = "";
                 matchzyTeam2.coach.Remove(player);
                 SetPlayerVisible(player);
             }
@@ -64,34 +66,35 @@ namespace MatchZy
                 return;
             }
 
-            if (player.InGameMoneyServices != null) player.InGameMoneyServices.Account = 0;
+            if (player.RequiredController.InGameMoneyServices != null) player.RequiredController.InGameMoneyServices.Account = 0;
 
             ReplyToUserCommand(player, "You are now not coaching any team!");
         }
 
-        [ConsoleCommand("matchzy_addplayer", "Adds player to the provided team")]
-        [ConsoleCommand("get5_addplayer", "Adds player to the provided team")]
-        public void OnAddPlayerCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("matchzy_addplayer", registerRaw: true)]
+        [CommandAlias("get5_addplayer", registerRaw: true)]
+        public void OnAddPlayerCommand(ICommandContext context)
         {
-            if (player != null || command == null) return;
+            IPlayer? player = context.Sender;
+            if (player != null) return;
             if (!isMatchSetup) {
-                command.ReplyToCommand("No match is setup!");
+                context.Reply("No match is setup!");
                 return;
             }
             if (IsHalfTimePhase())
             {
-                command.ReplyToCommand("Cannot add players during halftime. Please wait until the next round starts.");
+                context.Reply("Cannot add players during halftime. Please wait until the next round starts.");
                 return;
             }
-            if (command.ArgCount < 3)
+            if (context.Args.Length < 3)
             {
-                command.ReplyToCommand("Usage: matchzy_addplayer <steam64> <team> \"<name>\"");
+                context.Reply("Usage: matchzy_addplayer <steam64> <team> \"<name>\"");
                 return; 
             }
 
-            string playerSteamId = command.ArgByIndex(1);
-            string playerTeam = command.ArgByIndex(2);
-            string playerName = command.ArgByIndex(3);
+            string playerSteamId = context.Args[0];
+            string playerTeam = context.Args[1];
+            string playerName = context.Args[2];
             bool success;
             if (playerTeam == "team1")
             {
@@ -104,55 +107,62 @@ namespace MatchZy
                 success = AddPlayerToTeam(playerSteamId, playerName, matchConfig.Spectators);
             } else 
             {
-                command.ReplyToCommand("Unknown team: must be one of team1, team2, spec");
+                context.Reply("Unknown team: must be one of team1, team2, spec");
                 return; 
             }
             if (!success)
             {
-                command.ReplyToCommand($"Failed to add player {playerName} to {playerTeam}. They may already be on a team or you provided an invalid Steam ID.");
+                context.Reply($"Failed to add player {playerName} to {playerTeam}. They may already be on a team or you provided an invalid Steam ID.");
                 return;
             }
-            command.ReplyToCommand($"Player {playerName} added to {playerTeam} successfully!");
+            context.Reply($"Player {playerName} added to {playerTeam} successfully!");
         }
 
-        [ConsoleCommand("matchzy_removeplayer", "Removes the player from all the teams")]
-        [ConsoleCommand("get5_removeplayer", "Removes the player from all the teams")]
-        [CommandHelper(minArgs: 1, usage: "<steam64>")]
-        public void OnRemovePlayerCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("matchzy_removeplayer", registerRaw: true)]
+        [CommandAlias("get5_removeplayer", registerRaw: true)]
+        public void OnRemovePlayerCommand(ICommandContext context)
         {
-            if (player != null || command == null) return;
+            IPlayer? player = context.Sender;
+            if (player != null) return;
             if (!isMatchSetup) {
-                command.ReplyToCommand("No match is setup!");
+                context.Reply("No match is setup!");
                 return;
             }
             if (IsHalfTimePhase())
             {
-                command.ReplyToCommand("Cannot remove players during halftime. Please wait until the next round starts.");
+                context.Reply("Cannot remove players during halftime. Please wait until the next round starts.");
                 return;
             }
 
-            string arg = command.GetArg(1);
+            if (context.Args.Length < 1) {
+                context.Reply("Usage: matchzy_removeplayer <steam64>");
+                return;
+            }
+
+            string arg = context.Args[0];
 
             if (!ulong.TryParse(arg, out ulong steamId))
             {
-                command.ReplyToCommand($"Invalid Steam64");
+                context.Reply($"Invalid Steam64");
             }
 
             bool success = RemovePlayerFromTeam(steamId.ToString());
             if (success)
             {
-                command.ReplyToCommand($"Successfully removed player {steamId}");
-                CCSPlayerController? removedPlayer = Utilities.GetPlayerFromSteamId(steamId);
+                context.Reply($"Successfully removed player {steamId}");
+                // Find player by SteamID using SwiftlyS2 API
+                IPlayer? removedPlayer = Core.PlayerManager.GetAllPlayers()
+                    .FirstOrDefault(p => p.SteamID == steamId);
                 if (IsPlayerValid(removedPlayer))
                 {
-                    Log($"Kicking player {removedPlayer!.PlayerName} - Not a player in this game (removed).");
-                    PrintToAllChat($"Kicking player {removedPlayer!.PlayerName} - Not a player in this game.");
+                    Logger?.LogInformation($"Kicking player {removedPlayer!.RequiredController.PlayerName} - Not a player in this game (removed).");
+                    PrintToAllChat($"Kicking player {removedPlayer!.RequiredController.PlayerName} - Not a player in this game.");
                     KickPlayer(removedPlayer);
                 }
             }
             else
             {
-                command.ReplyToCommand($"Player {steamId} not found in any team or the Steam ID was invalid.");
+                context.Reply($"Player {steamId} not found in any team or the Steam ID was invalid.");
             }
         }
 

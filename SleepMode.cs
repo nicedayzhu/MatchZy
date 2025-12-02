@@ -1,7 +1,6 @@
-using CounterStrikeSharp.API;
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Commands;
+using SwiftlyS2.Shared.Commands;
+using SwiftlyS2.Shared.Players;
+using Microsoft.Extensions.Logging;
 
 
 namespace MatchZy
@@ -9,8 +8,6 @@ namespace MatchZy
 
     public partial class MatchZy
     {
-        public const string sleepCfgPath = "MatchZy/sleep.cfg";
-
         public void StartSleepMode()
         {
             if (matchStarted) return;
@@ -23,25 +20,27 @@ namespace MatchZy
             isSideSelectionPhase = false;
             isMatchLive = false;
 
-            var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", sleepCfgPath);
+            string cfgExecPath = EnsureCfgInGameCfgDirectory("sleep.cfg");
+            string cfgPath = GetConfigFilePath("sleep.cfg");
 
-            if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", sleepCfgPath)))
+            if (File.Exists(cfgPath))
             {
-                Log($"Starting Sleep Mode! Executing Sleep CFG from {sleepCfgPath}");
-                Server.ExecuteCommand($"exec {sleepCfgPath}");
+                Logger.LogInformation($"Starting Sleep Mode! Executing Sleep CFG via exec {cfgExecPath} (source: {cfgPath})");
+                Core.Engine.ExecuteCommand($"exec {cfgExecPath}");
             }
             else
             {
-                Log($"Starting Sleep Mode! Sleep CFG not found in {absolutePath}, using default CFG!");
+                Logger.LogInformation($"Starting Sleep Mode! Sleep CFG not found in {cfgPath}, using default CFG!");
                 ExecUnpracCommands();
-                Server.ExecuteCommand("""exec gamemode_competitive.cfg;""");
+                Core.Engine.ExecuteCommand("""exec gamemode_competitive.cfg;""");
             }
-            Log($"[StartSleepMode] MatchZy deactivated!");
+            Logger.LogInformation($"[StartSleepMode] MatchZy deactivated!");
         }
 
-        [ConsoleCommand("css_sleep", "Starts sleep mode")]
-        public void OnSleepCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("sleep", registerRaw: true)]
+        public void OnSleepCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (!IsPlayerAdmin(player, "css_sleep", "@css/map", "@custom/prac"))
             {
                 SendPlayerNotAdminMessage(player);

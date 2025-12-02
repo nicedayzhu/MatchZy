@@ -3,14 +3,14 @@ using System.IO;
 using System.Data;
 using System.Text.Json;
 using System.Globalization;
-using Microsoft.Data.Sqlite;
-using Dapper;
-using CounterStrikeSharp.API;
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Memory;
-using CsvHelper;
-using CsvHelper.Configuration;
-using MySqlConnector;
+// TODO: Update database dependencies to use SwiftlyS2 DatabaseService
+// using Microsoft.Data.Sqlite;
+// using Dapper;
+using SwiftlyS2.Shared;
+// using SwiftlyS2.Shared.Modules.Memory;
+// using CsvHelper;
+// using CsvHelper.Configuration;
+// using MySqlConnector;
 
 
 

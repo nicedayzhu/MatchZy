@@ -1,0 +1,28 @@
+{
+    // Example database configuration for MatchZy (template only)
+    // 注意：SwiftlyS2 实际使用的是 (swRoot)/addons/swiftlys2/configs/database.jsonc
+    // 这里只是示例，你可以把下面的配置合并到全局 database.jsonc 里：
+    //
+    // "connections": {
+    //   "matchzy_db": "sqlite://matchzy.db"
+    // }
+    //
+    // 或者使用 MySQL：
+    // "connections": {
+    //   "matchzy_db": "mysql://username:password@localhost:3306/matchzy"
+    // }
+    //
+    // 本文件不会被 IDatabaseService 直接读取，只是方便查看/复制。
+    "Database": {
+        "DefaultConnection": "matchzy_db",
+        "Connections": {
+            // SQLite example (default)
+            // The path is relative to the plugin's data directory
+            "matchzy_db": "sqlite://matchzy.db"
+        }
+    }
+}
+
+
+
+

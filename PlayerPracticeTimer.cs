@@ -1,5 +1,5 @@
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Utils;
+using SwiftlyS2.Shared.Players;
+using System.Threading;
 
 namespace MatchZy;
 
@@ -15,16 +15,16 @@ public class PlayerPracticeTimer
 
     public PracticeTimerType TimerType { get; set; }
 
-    public CounterStrikeSharp.API.Modules.Timers.Timer? Timer { get; set; }
+    public CancellationTokenSource? Timer { get; set; }
 
     public PlayerPracticeTimer(PracticeTimerType timerType)
     {
         TimerType = timerType;
     }
 
-    public void DisplayTimerCenter(CCSPlayerController player)
+    public void DisplayTimerCenter(IPlayer player)
     {
-        player.PrintToCenter($"Timer: {GetTimerResult()}s");
+        player.SendCenter($"Timer: {GetTimerResult()}s");
     }
 
     public double GetTimerResult()
@@ -35,6 +35,7 @@ public class PlayerPracticeTimer
 
     public void KillTimer()
     {
-        Timer?.Kill();
+        Timer?.Cancel();
+        Timer = null;
     }
 }

@@ -1,5 +1,5 @@
-﻿using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Utils;
+﻿using SwiftlyS2.Shared.Natives;
+using SwiftlyS2.Shared.Players;
 
 namespace MatchZy;
 
@@ -14,9 +14,9 @@ public class PlayerLocationData
         this.Angle = angle;
     }
     
-    public void LoadPosition(CCSPlayerController player)
+    public void LoadPosition(IPlayer player)
     {
-        if (player == null || player.PlayerPawn.Value == null) return;
-        player.PlayerPawn.Value.Teleport(Position, Angle, new Vector(0, 0, 0));
+        if (player == null || !player.IsValid) return;
+        player.RequiredPlayerPawn.Teleport(Position, Angle, new Vector(0, 0, 0));
     }
 }

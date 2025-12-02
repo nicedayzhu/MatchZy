@@ -1,6 +1,7 @@
-using CounterStrikeSharp.API;
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Utils;
+using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Players;
+using TeamEnum = SwiftlyS2.Shared.Players.Team;
+using SwiftlyS2.Shared.Natives;
 
 namespace MatchZy;
 public class GrenadeThrownData
@@ -26,104 +27,62 @@ public class GrenadeThrownData
     public GrenadeThrownData(Vector nadePosition, QAngle nadeAngle, Vector nadeVelocity, Vector playerPosition, QAngle playerAngle, string grenadeType, DateTime thrownTime, UInt16 itemIndex)
     {
         Position = new Vector(nadePosition.X, nadePosition.Y, nadePosition.Z);
-        Angle = new QAngle(nadeAngle.X, nadeAngle.Y, nadeAngle.Z);
+        Angle = new QAngle(nadeAngle.Pitch, nadeAngle.Yaw, nadeAngle.Roll);
         Velocity = new Vector(nadeVelocity.X, nadeVelocity.Y, nadeVelocity.Z);
         PlayerPosition = new Vector(playerPosition.X, playerPosition.Y, playerPosition.Z);
-        PlayerAngle = new QAngle(playerAngle.X, playerAngle.Y, playerAngle.Z);
+        PlayerAngle = new QAngle(playerAngle.Pitch, playerAngle.Yaw, playerAngle.Roll);
         Type = grenadeType;
         ThrownTime = thrownTime;
         Delay = 0;
         ItemIndex = itemIndex;
     }
 
-    public void LoadPosition(CCSPlayerController player)
+    public void LoadPosition(IPlayer player)
     {
-        if (player == null || player.PlayerPawn.Value == null) return;
-        player.PlayerPawn.Value.Teleport(PlayerPosition, PlayerAngle, new Vector(0, 0, 0));
+        if (player == null || !player.IsValid) return;
+        player.RequiredPlayerPawn.Teleport(PlayerPosition, PlayerAngle, new Vector(0, 0, 0));
     }
 
-    public void Throw(CCSPlayerController player)
+    public void Throw(IPlayer player)
     {
-		CBaseCSGrenadeProjectile? grenadeEntity = null;
+		// TODO: Implement grenade throwing using SwiftlyS2 EntitySystem
+		// This functionality needs to be reimplemented using SwiftlyS2's entity creation APIs
+		Console.WriteLine($"[MatchZy] Throw grenade not yet implemented for type: {Type}");
+		/*
+		var playerPawn = player.RequiredPlayerPawn;
+		var team = player.RequiredController.TeamNum == (byte)TeamEnum.CT ? TeamEnum.CT : TeamEnum.T;
+		
 		switch (Type)
 		{
 			case "smoke":
 			{
-				grenadeEntity = GrenadeFunctions.CSmokeGrenadeProjectile_CreateFunc.Invoke(
-					Position.Handle,
-					Angle.Handle,
-					Velocity.Handle,
-					Velocity.Handle,
-					IntPtr.Zero,
-					ItemIndex,
-					(int)player.Team);
+				// TODO: Implement using SwiftlyS2 EntitySystem
 				break;
 			}
 			case "molotov":
 			{
-				grenadeEntity = GrenadeFunctions.CMolotovProjectile_CreateFunc.Invoke(
-					Position.Handle,
-					Angle.Handle,
-					Velocity.Handle,
-					Velocity.Handle,
-					IntPtr.Zero,
-					ItemIndex);
+				// TODO: Implement using SwiftlyS2 EntitySystem
 				break;
 			}
 			case "hegrenade":
 			{
-				grenadeEntity = GrenadeFunctions.CHEGrenadeProjectile_CreateFunc.Invoke(
-					Position.Handle,
-					Angle.Handle,
-					Velocity.Handle,
-					Velocity.Handle,
-					IntPtr.Zero,
-					ItemIndex);
+				// TODO: Implement using SwiftlyS2 EntitySystem
 				break;
 			}
 			case "decoy":
 			{
-				grenadeEntity = GrenadeFunctions.CDecoyProjectile_CreateFunc.Invoke(
-					Position.Handle,
-					Angle.Handle,
-					Velocity.Handle,
-					Velocity.Handle,
-					IntPtr.Zero,
-					ItemIndex);
+				// TODO: Implement using SwiftlyS2 EntitySystem
 				break;
 			}
 			case "flash":
 			{
-				grenadeEntity = Utilities.CreateEntityByName<CFlashbangProjectile>("flashbang_projectile");
-				if (grenadeEntity == null) return;
-				grenadeEntity.DispatchSpawn();
+				// TODO: Implement using SwiftlyS2 EntitySystem
 				break;
 			}
 			default:
 				Console.WriteLine($"[MatchZy] Unknown Grenade: {Type}");
 				break;
 		}
-
-		if (grenadeEntity != null && grenadeEntity.DesignerName != "smokegrenade_projectile")
-		{
-			grenadeEntity.InitialPosition.X = Position.X;
-			grenadeEntity.InitialPosition.Y = Position.Y;
-			grenadeEntity.InitialPosition.Z = Position.Z;
-
-			grenadeEntity.InitialVelocity.X = Velocity.X;
-			grenadeEntity.InitialVelocity.Y = Velocity.Y;
-			grenadeEntity.InitialVelocity.Z = Velocity.Z;
-
-			grenadeEntity.AngVelocity.X = Velocity.X;
-			grenadeEntity.AngVelocity.Y = Velocity.Y;
-			grenadeEntity.AngVelocity.Z = Velocity.Z;
-
-            grenadeEntity.Teleport(Position, Angle, Velocity);
-            grenadeEntity.Globalname = "custom";
-            grenadeEntity.TeamNum = player.TeamNum;
-            grenadeEntity.Thrower.Raw = player.PlayerPawn.Raw;
-            grenadeEntity.OriginalThrower.Raw = player.PlayerPawn.Raw;
-            grenadeEntity.OwnerEntity.Raw = player.PlayerPawn.Raw;
-		}
+		*/
     }
 }

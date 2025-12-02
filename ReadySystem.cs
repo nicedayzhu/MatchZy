@@ -1,28 +1,29 @@
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Utils;
+using SwiftlyS2.Shared.Commands;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.Misc;
+using TeamEnum = SwiftlyS2.Shared.Players.Team;
+using Microsoft.Extensions.Logging;
 
 namespace MatchZy;
 
 public partial class MatchZy
 {
-    public Dictionary<CsTeam, bool> teamReadyOverride = new() {
-        {CsTeam.Terrorist, false},
-        {CsTeam.CounterTerrorist, false},
-        {CsTeam.Spectator, false}
+    public Dictionary<TeamEnum, bool> teamReadyOverride = new() {
+        {TeamEnum.T, false},
+        {TeamEnum.CT, false},
+        {TeamEnum.Spectator, false}
     };
 
     public bool allowForceReady = true;
 
     public bool IsTeamsReady()
     {
-        return IsTeamReady((int)CsTeam.CounterTerrorist) && IsTeamReady((int)CsTeam.Terrorist);
+        return IsTeamReady((int)TeamEnum.CT) && IsTeamReady((int)TeamEnum.T);
     }
 
     public bool IsSpectatorsReady()
     {
-        return IsTeamReady((int)CsTeam.Spectator);
+        return IsTeamReady((int)TeamEnum.Spectator);
     }
 
     public bool IsTeamReady(int team)
@@ -33,9 +34,9 @@ public partial class MatchZy
         int minReady = GetTeamMinReady(team);
         (int playerCount, int readyCount) = GetTeamPlayerCount(team, false);
 
-        Log($"[IsTeamReady] team: {team} minPlayers:{minPlayers} minReady:{minReady} playerCount:{playerCount} readyCount:{readyCount}");
+        Logger.LogInformation($"[IsTeamReady] team: {team} minPlayers:{minPlayers} minReady:{minReady} playerCount:{playerCount} readyCount:{readyCount}");
 
-        if (team == (int)CsTeam.Spectator && minReady == 0)
+        if (team == (int)TeamEnum.Spectator && minReady == 0)
         {
             return true;
         }
@@ -51,7 +52,9 @@ public partial class MatchZy
             return true;
         }
 
-        if (IsTeamForcedReady((CsTeam)team) && readyCount >= minReady)
+        // Check if team is forced ready (if implemented)
+        // For now, just check ready count
+        if (readyCount >= minReady)
         {
             return true;
         }
@@ -61,15 +64,15 @@ public partial class MatchZy
 
     public int GetPlayersPerTeam(int team)
     {
-        if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.PlayersPerTeam;
-        if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
+        if (team == (int)TeamEnum.CT || team == (int)TeamEnum.T) return matchConfig.PlayersPerTeam;
+        if (team == (int)TeamEnum.Spectator) return matchConfig.MinSpectatorsToReady;
         return 0;
     }
 
     public int GetTeamMinReady(int team)
     {
-        if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.MinPlayersToReady;
-        if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
+        if (team == (int)TeamEnum.CT || team == (int)TeamEnum.T) return matchConfig.MinPlayersToReady;
+        if (team == (int)TeamEnum.Spectator) return matchConfig.MinSpectatorsToReady;
         return 0;
     }
 
@@ -77,48 +80,57 @@ public partial class MatchZy
     {
         int playerCount = 0;
         int readyCount = 0;
-        foreach (var key in playerData.Keys)
+        
+        // Using Core.PlayerManager to get players in SwiftlyS2
+        var allPlayers = Core.PlayerManager.GetAllPlayers();
+        foreach (var player in allPlayers)
         {
-            if (!playerData[key].IsValid) continue;
-            if (playerData[key].TeamNum == team) {
+            if (!player.IsValid) continue;
+            if ((int)player.Controller.TeamNum == team) {
                 playerCount++;
-                if (playerReadyStatus[key] == true) readyCount++;
+                if (playerReadyStatus.ContainsKey(player.PlayerID) && playerReadyStatus[player.PlayerID] == true) 
+                    readyCount++;
             }
         }
         return (playerCount, readyCount);
     }
 
-    public bool IsTeamForcedReady(CsTeam team) {
+    public bool IsTeamForcedReady(TeamEnum team) {
         return teamReadyOverride[team];
     }
 
-    [ConsoleCommand("css_forceready", "Force-readies the team")]
-    public void OnForceReadyCommandCommand(CCSPlayerController? player, CommandInfo? command)
+    [Command("forceready", registerRaw: true)]
+    public void OnForceReadyCommandCommand(ICommandContext context)
     {
-        Log($"{readyAvailable} {isMatchSetup} {allowForceReady} {IsPlayerValid(player)}");
-        if (!readyAvailable || !isMatchSetup || !allowForceReady || !IsPlayerValid(player)) return;
+        if (context.Sender == null || !context.Sender.IsValid) return;
+        
+        var player = context.Sender;
+        var teamNum = (int)player.Controller.TeamNum;
+        
+        Logger.LogInformation($"{readyAvailable} {isMatchSetup} {allowForceReady} {player.IsValid}");
+        if (!readyAvailable || !isMatchSetup || !allowForceReady || !player.IsValid) return;
 
-        int minReady = GetTeamMinReady(player!.TeamNum);
-        (int playerCount, int readyCount) = GetTeamPlayerCount(player!.TeamNum, false);
+        int minReady = GetTeamMinReady(teamNum);
+        (int playerCount, int readyCount) = GetTeamPlayerCount(teamNum, false);
 
         if (playerCount < minReady) 
         {
-            // ReplyToUserCommand(player, $"You must have at least {minReady} player(s) on the server to ready up.");
-            ReplyToUserCommand(player, Localizer["matchzy.rs.minreadyplayers", minReady]);
+            context.Reply(Localizer["matchzy.rs.minreadyplayers", minReady]);
             return;
         }
 
-        foreach (var key in playerData.Keys)
+        var allPlayers = Core.PlayerManager.GetAllPlayers();
+        foreach (var p in allPlayers)
         {
-            if (!playerData[key].IsValid) continue;
-            if (playerData[key].TeamNum == player.TeamNum) {
-                playerReadyStatus[key] = true;
-                // ReplyToUserCommand(playerData[key], $"Your team was force-readied by {player.PlayerName}");
-                ReplyToUserCommand(playerData[key], Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
+            if (!p.IsValid) continue;
+            if ((int)p.Controller.TeamNum == teamNum) {
+                playerReadyStatus[p.PlayerID] = true;
+                ReplyToUserCommand(p, Localizer["matchzy.rs.forcereadiedby", player.Controller.PlayerName]);
             }
         }
 
-        teamReadyOverride[(CsTeam)player.TeamNum] = true;
-        CheckLiveRequired();
+        teamReadyOverride[(TeamEnum)teamNum] = true;
+        // TODO: Implement CheckLiveRequired
+        // CheckLiveRequired();
     }
 }

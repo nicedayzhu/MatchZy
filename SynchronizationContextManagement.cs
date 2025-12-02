@@ -1,11 +1,13 @@
-using CounterStrikeSharp.API;
+using SwiftlyS2.Shared;
 
 
 class SourceSynchronizationContext : SynchronizationContext
 {
     public override void Post(SendOrPostCallback d, object? state)
     {
-        Server.NextWorldUpdate(() => d(state));
+        // TODO: Implement NextWorldUpdate equivalent in SwiftlyS2
+        // Core.Scheduler.NextFrame(() => d(state));
+        d(state);
     }
 
     public override SynchronizationContext CreateCopy()

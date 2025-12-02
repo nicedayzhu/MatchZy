@@ -1,43 +1,49 @@
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Commands;
+using SwiftlyS2.Shared.Commands;
+using SwiftlyS2.Shared.Players;
+using Microsoft.Extensions.Logging;
 
 namespace MatchZy
 {
     public partial class MatchZy
     {
-        [ConsoleCommand("get5_remote_log_url", "If defined, all events are sent to this URL over HTTP. If no protocol is provided")]
-        [ConsoleCommand("matchzy_remote_log_url", "If defined, all events are sent to this URL over HTTP. If no protocol is provided")]
-        public void RemoteLogURLCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_remote_log_url", registerRaw: true)]
+        [CommandAlias("matchzy_remote_log_url", registerRaw: true)]
+        public void RemoteLogURLCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player != null) return;
-            string url = command.ArgByIndex(1);
+            if (context.Args.Length < 1) return;
+            string url = context.Args[0];
 
             if (!IsValidUrl(url))
             {
-                Log($"[RemoteLogURLCommand] Invalid URL: {url}. Please provide a valid URL!");
+                Logger.LogError($"[RemoteLogURLCommand] Invalid URL: {url}. Please provide a valid URL!");
                 return;
             }
 
             matchConfig.RemoteLogURL = url;
         }
 
-        [ConsoleCommand("get5_remote_log_header_key", "If defined, a custom HTTP header with this name is added to the HTTP requests for events")]
-        [ConsoleCommand("matchzy_remote_log_header_key", "If defined, a custom HTTP header with this name is added to the HTTP requests for events")]
-        public void RemoteLogHeaderKeyCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_remote_log_header_key", registerRaw: true)]
+        [CommandAlias("matchzy_remote_log_header_key", registerRaw: true)]
+        public void RemoteLogHeaderKeyCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player != null) return;
-            string header = command.ArgByIndex(1).Trim();
+            if (context.Args.Length < 1) return;
+            string header = context.Args[0].Trim();
 
             if (header != "") matchConfig.RemoteLogHeaderKey = header;
         }
 
-        [ConsoleCommand("get5_remote_log_header_value", "If defined, the value of the custom header added to the events sent over HTTP")]
-        [ConsoleCommand("matchzy_remote_log_header_value", "If defined, the value of the custom header added to the events sent over HTTP")]
-        public void RemoteLogHeaderValueCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_remote_log_header_value", registerRaw: true)]
+        [CommandAlias("matchzy_remote_log_header_value", registerRaw: true)]
+        public void RemoteLogHeaderValueCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player != null) return;
-            string headerValue = command.ArgByIndex(1).Trim();
+            if (context.Args.Length < 1) return;
+            string headerValue = context.Args[0].Trim();
 
             if (headerValue != "") matchConfig.RemoteLogHeaderValue = headerValue;
         }

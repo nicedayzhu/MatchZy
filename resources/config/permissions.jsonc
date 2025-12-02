@@ -1,0 +1,37 @@
+{
+  // Permission configuration for MatchZy
+  // This file is managed by SwiftlyS2's permission system
+  // You can also use SwiftlyS2's permission commands to manage permissions at runtime
+  "Permissions": {
+    // Player-specific permissions
+    // Format: "SteamID64": ["permission1", "permission2"]
+    "Players": {
+      // Example: Grant admin permissions to a specific player
+      // "76561198154367261": [
+      //   "@css/root"
+      // ]
+    },
+    
+    // Permission groups
+    // Groups can inherit from other groups and contain multiple permissions
+    "PermissionGroups": {
+      // Default permissions for all players
+      "__default": [
+        // Add default permissions here if needed
+      ],
+      
+      // Example permission groups
+      // "matchzy_admin": [
+      //   "@css/config",
+      //   "@css/map"
+      // ],
+      // "matchzy_moderator": [
+      //   "@css/chat"
+      // ]
+    }
+  }
+}
+
+
+
+

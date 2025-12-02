@@ -1,10 +1,10 @@
-using CounterStrikeSharp.API;
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Timers;
+using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.Commands;
+using SwiftlyS2.Shared.Misc;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 
 namespace MatchZy
@@ -34,42 +34,44 @@ namespace MatchZy
         public void SetupRoundBackupFile()
         {
             string backupFilePrefix = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}";
-            Server.ExecuteCommand($"mp_backup_round_file {backupFilePrefix}");
+            Core.Engine.ExecuteCommand($"mp_backup_round_file {backupFilePrefix}");
         }
-        [ConsoleCommand("css_stop", "Restore the backup of the current round (Both teams need to type .stop to restore the current round)")]
-        public void OnStopCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Stops the current round and prepares for restore. Requires @css/config permission.
+        /// </summary>
+        [Command("matchzy_stop", registerRaw: true, permission: "@css/config")]
+        // Note: "stop" alias removed to avoid conflict with SwiftlyS2/system commands
+        public void OnStopCommand(ICommandContext context)
         {
-            if (player == null) return;
+            if (context.Sender == null || !context.Sender.IsValid) return;
+            var player = context.Sender;
 
-            Log($"[!stop command] Sent by: {player.UserId}, TeamNum: {player.TeamNum}, connectedPlayers: {connectedPlayers}");
+            Logger.LogInformation($"[!stop command] Sent by: {player.PlayerID}, TeamNum: {player.RequiredController.TeamNum}, connectedPlayers: {connectedPlayers}");
             if (isStopCommandAvailable && isMatchLive)
             {
                 if (IsHalfTimePhase())
                 {
-                    // ReplyToUserCommand(player, "You cannot use this command during halftime.");
-                    ReplyToUserCommand(player, Localizer["matchzy.backup.stopduringhalftime"]);
+                    context.Reply(Localizer["matchzy.backup.stopduringhalftime"]);
                     return;
                 }
                 if (IsPostGamePhase())
                 {
-                    // ReplyToUserCommand(player, "You cannot use this command after the game has ended.");
-                    ReplyToUserCommand(player, Localizer["matchzy.backup.stopmatchended"]);
+                    context.Reply(Localizer["matchzy.backup.stopmatchended"]);
                     return;
                 }
                 if (IsTacticalTimeoutActive())
                 {
-                    // ReplyToUserCommand(player, "You cannot use this command when tactical timeout is active.");
-                    ReplyToUserCommand(player, Localizer["matchzy.backup.stoptacticaltimeout"]);
+                    context.Reply(Localizer["matchzy.backup.stoptacticaltimeout"]);
                     return;
                 }
-                if (playerHasTakenDamage && stopCommandNoDamage.Value)
+                if (playerHasTakenDamage && stopCommandNoDamage)
                 {
-                    ReplyToUserCommand(player, Localizer["matchzy.restore.stopcommandrequiresnodamage"]);
+                    context.Reply(Localizer["matchzy.restore.stopcommandrequiresnodamage"]);
                     return;
                 }
                 string stopTeamName = "";
                 string remainingStopTeam = "";
-                if (player.TeamNum == 2)
+                if ((int)player.RequiredController.TeamNum == 2)
                 {
                     stopTeamName = reverseTeamSides["TERRORIST"].teamName;
                     remainingStopTeam = reverseTeamSides["CT"].teamName;
@@ -79,7 +81,7 @@ namespace MatchZy
                     }
 
                 }
-                else if (player.TeamNum == 3)
+                else if ((int)player.RequiredController.TeamNum == 3)
                 {
                     stopTeamName = reverseTeamSides["CT"].teamName;
                     remainingStopTeam = reverseTeamSides["TERRORIST"].teamName;
@@ -101,38 +103,44 @@ namespace MatchZy
                     else
                     {
                         // This should not happen, lastMatchZyBackupFileName should not be empty in a live game!
-                        Log($"[OnStopCommand] lastMatchZyBackupFileName not found, unable to restore round!");
+                        Logger.LogInformation($"[OnStopCommand] lastMatchZyBackupFileName not found, unable to restore round!");
                     }
 
                 }
                 else
                 {
                     PrintToAllChat(Localizer["matchzy.restore.teamwantstorestore", stopTeamName, remainingStopTeam]);
-                    // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{stopTeamName}{ChatColors.Default} wants to restore the game to the beginning of the current round. {ChatColors.Green}{remainingStopTeam}{ChatColors.Default}, please write !stop to confirm.");
                 }
             }
         }
 
-        [ConsoleCommand("css_restore", "Restores the specified round")]
-        public void OnRestoreCommand(CCSPlayerController? player, CommandInfo command)
+        /// <summary>
+        /// Restores the game to a specific round. Requires @css/config permission.
+        /// Usage: !restore &lt;round&gt;
+        /// </summary>
+        [Command("restore", registerRaw: true, permission: "@css/config")]
+        public void OnRestoreCommand(ICommandContext context)
         {
+            if (context.Sender == null || !context.Sender.IsValid) return;
+            var player = context.Sender;
+            
             if (!IsPlayerAdmin(player, "css_restore", "@css/config"))
             {
                 SendPlayerNotAdminMessage(player);
                 return;
             }
-            if (command.ArgCount >= 2)
+            if (context.Args.Length >= 1)
             {
-                string commandArg = command.ArgByIndex(1);
+                string commandArg = context.Args[0];
                 HandleRestoreCommand(player, commandArg);
             }
             else
             {
-                ReplyToUserCommand(player, Localizer["matchzy.cc.usage", "!restore <round>"]);
+                context.Reply(Localizer["matchzy.cc.usage", "!restore <round>"]);
             }
         }
 
-        private void HandleRestoreCommand(CCSPlayerController? player, string commandArg)
+        private void HandleRestoreCommand(IPlayer? player, string commandArg)
         {
             if (!IsPlayerAdmin(player, "css_restore", "@css/config"))
             {
@@ -152,13 +160,13 @@ namespace MatchZy
                 else
                 {
                     // ReplyToUserCommand(player, $"Invalid value for restore command. Please specify a valid non-negative number. Usage: !restore <round>");
-                    ReplyToUserCommand(player, Localizer["matchzy.backup.restoreinvalidvalue"]);
+                    player.SendMessage(MessageType.Chat, Localizer["matchzy.backup.restoreinvalidvalue"]);
                 }
             }
             else
             {
                 // ReplyToUserCommand(player, $"Usage: !restore <round>");
-                ReplyToUserCommand(player, Localizer["matchzy.cc.usage", "!restore <round>"]);
+                player.SendMessage(MessageType.Chat, Localizer["matchzy.cc.usage", "!restore <round>"]);
             }
         }
         public static string ExtractJsonFileName(string input)
@@ -203,34 +211,37 @@ namespace MatchZy
 
 
 
-        private void RestoreRoundBackup(CCSPlayerController? player, string fileName)
+        private void RestoreRoundBackup(IPlayer? player, string fileName)
         {
-
- 
-
-            if (IsHalfTimePhase())
+            if (player != null)
             {
-                ReplyToUserCommand(player, Localizer["matchzy.backup.restoreduringhalftime"]);
-                return;
+                if (IsHalfTimePhase())
+                {
+                    ReplyToUserCommand(player, Localizer["matchzy.backup.restoreduringhalftime"]);
+                    return;
+                }
+                if (IsPostGamePhase())
+                {
+                    ReplyToUserCommand(player, Localizer["matchzy.backup.restorematchended"]);
+                    return;
+                }
+                if (IsTacticalTimeoutActive())
+                {
+                    ReplyToUserCommand(player, Localizer["matchzy.backup.restoretacticaltimeout"]);
+                    return;
+                }
             }
-            if (IsPostGamePhase())
-            {
-                ReplyToUserCommand(player, Localizer["matchzy.backup.restorematchended"]);
-                return;
-            }
-            if (IsTacticalTimeoutActive())
-            {
-                ReplyToUserCommand(player, Localizer["matchzy.backup.restoretacticaltimeout"]);
-                return;
-            }
-            string backupFolder = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup");
+            string backupFolder = Path.Combine(Core.CSGODirectory, "MatchZyDataBackup");
      
             string filePath = Path.Combine(backupFolder, fileName);
  
             if (!File.Exists(filePath))
             {
-                ReplyToUserCommand(player, Localizer["matchzy.backup.restoredoesntexist", fileName]);
-                Log($"[RestoreRoundBackup FATAL] Required backup data file does not exist! File: {filePath}");
+                if (player != null)
+                {
+                    ReplyToUserCommand(player, Localizer["matchzy.backup.restoredoesntexist", fileName]);
+                }
+                Logger.LogError($"[RestoreRoundBackup FATAL] Required backup data file does not exist! File: {filePath}");
                 return;
             }
 
@@ -239,9 +250,14 @@ namespace MatchZy
 
             // We set active timeouts to false so that timeout does not start after the round has been restored.
             // This is to prevent any buggish behaviour with timeouts (like incorrect timeout used showing, or force-unpausing the match once timeout ends)
-            gameRules.CTTimeOutActive = gameRules.TerroristTimeOutActive = false;
+            var gameRulesForTimeout = Core.EntitySystem.GetGameRules();
+            if (gameRulesForTimeout != null)
+            {
+                gameRulesForTimeout.CTTimeOutActive = false;
+                gameRulesForTimeout.TerroristTimeOutActive = false;
+            }
 
-            // Server.ExecuteCommand($"mp_backup_restore_load_file {fileName}");
+            // Core.Engine.ExecuteCommand($"mp_backup_restore_load_file {fileName}");
 
             Dictionary<string, string> backupData = new();
             try
@@ -310,7 +326,7 @@ namespace MatchZy
                 }
                 if (backupData.TryGetValue("map_name", out var map_name))
                 {
-                    if (map_name != Server.MapName)
+                    if (map_name != Core.Engine.GlobalVars.MapName)
                     {
                         ChangeMap(map_name, 0);
                         isRoundRestorePending = true;
@@ -321,7 +337,8 @@ namespace MatchZy
                 }
 
                 // This is done after checking map_name so that we load the correct map first
-                if (gameRules.WarmupPeriod)
+                var gameRulesForWarmup = GetGameRules();
+                if (gameRulesForWarmup != null && gameRulesForWarmup.WarmupPeriod)
                 {
                     if (!isRoundRestorePending)
                     {
@@ -335,14 +352,17 @@ namespace MatchZy
                         liveSetupRequired = true;
                     }
                 }
-                if (backupData.TryGetValue("TerroristTimeOuts", out var terroristTimeouts))
+                var gameRulesForTimeouts = GetGameRules();
+                if (gameRulesForTimeouts != null)
                 {
-                    gameRules.TerroristTimeOuts = int.Parse(terroristTimeouts);
-                }
-
-                if (backupData.TryGetValue("CTTimeOuts", out var ctTimeouts))
-                {
-                    gameRules.CTTimeOuts = int.Parse(ctTimeouts);
+                    if (backupData.TryGetValue("TerroristTimeOuts", out var terroristTimeouts))
+                    {
+                        gameRulesForTimeouts.TerroristTimeOuts = int.Parse(terroristTimeouts);
+                    }
+                    if (backupData.TryGetValue("CTTimeOuts", out var ctTimeouts))
+                    {
+                        gameRulesForTimeouts.CTTimeOuts = int.Parse(ctTimeouts);
+                    }
                 }
                 if (backupData.TryGetValue("valve_backup", out var valveBackup))
                 {
@@ -351,7 +371,7 @@ namespace MatchZy
                     {
                         tempFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{roundNumber}.txt";
                     }
-                    string tempFilePath = Path.Combine(Server.GameDirectory, "csgo", tempFileName);
+                    string tempFilePath = Path.Combine(Core.CSGODirectory, "csgo", tempFileName);
 
 
                     if (!File.Exists(tempFilePath))
@@ -361,39 +381,42 @@ namespace MatchZy
                     int restoreTimer = liveSetupRequired ? 2 : 0;
                     if (liveSetupRequired)
                     {
-                        Log($"Game was in warmup, setting up Live!");
+                        Logger.LogInformation($"Game was in warmup, setting up Live!");
                         SetupLiveFlagsAndCfg();
                     }
-                    AddTimer(restoreTimer, () => {
-                        string fileName = Path.GetFileName(tempFilePath);
+                    SchedulerService.DelayBySeconds(restoreTimer, () => {
+                        string backupFileName = Path.GetFileName(tempFilePath);
 
-                        Server.ExecuteCommand($"mp_backup_restore_load_file {fileName}");
+                        Core.Engine.ExecuteCommand($"mp_backup_restore_load_file {backupFileName}");
                         StartDemoRecording();
                     });
-                    // AddTimer(5, () => File.Delete(tempFilePath));
+                    SchedulerService.DelayBySeconds(5, () => File.Delete(tempFilePath));
                 }
             }
             catch (Exception e)
             {
-                Log($"[RestoreRoundBackup FATAL] An error occurred: {e.Message}");
+                Logger.LogError($"[RestoreRoundBackup FATAL] An error occurred: {e.Message}");
                 return;
             }
 
             PrintToAllChat(Localizer["matchzy.restore.restoredsuccessfully", fileName]);
             if (pauseAfterRoundRestore)
             {
-                Server.ExecuteCommand("mp_pause_match;");
+                Core.Engine.ExecuteCommand("mp_pause_match;");
                 stopData["ct"] = false;
                 stopData["t"] = false;
                 isPaused = true;
                 unpauseData["pauseTeam"] = "RoundRestore";
-                pausedStateTimer ??= AddTimer(chatTimerDelay, SendPausedStateMessage, TimerFlags.REPEAT);
+                if (pausedStateTimer == null)
+                {
+                    pausedStateTimer = SchedulerService.RepeatBySeconds(chatTimerDelay, SendPausedStateMessage);
+                }
             }
         }
 
         public void CreateMatchZyRoundDataBackup()
         {
-            Log($"[CreateMatchZyRoundDataBackup] isRoundRestoring: {isRoundRestoring} isMatchLive: {isMatchLive}");
+            Logger.LogInformation($"[CreateMatchZyRoundDataBackup] isRoundRestoring: {isRoundRestoring} isMatchLive: {isMatchLive}");
             if (!isMatchLive || isRoundRestoring) return;
             try
             {
@@ -401,7 +424,7 @@ namespace MatchZy
                 int roundNumber = t1score + t2score;
                 string round = roundNumber.ToString("D2");
                 string matchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.json";
-                string filePath = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup", matchZyBackupFileName);
+                string filePath = Path.Combine(Core.CSGODirectory, "csgo", "MatchZyDataBackup", matchZyBackupFileName);
 
                 string? directoryPath = Path.GetDirectoryName(filePath);
                 if (directoryPath != null && !Directory.Exists(directoryPath))
@@ -409,10 +432,11 @@ namespace MatchZy
                     Directory.CreateDirectory(directoryPath);
                 }
 
-                var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
+                // Using SwiftlyS2 entity system
+                var gameRules = GetGameRules();
                 string lastBackupFilePath = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.txt"; ;
-                bool lastBackupExists = File.Exists(Path.Combine(Server.GameDirectory, "csgo", lastBackupFilePath));
-                lastBackupFilePath = Path.Combine(Server.GameDirectory, "csgo", lastBackupFilePath);
+                bool lastBackupExists = File.Exists(Path.Combine(Core.CSGODirectory, "csgo", lastBackupFilePath));
+                lastBackupFilePath = Path.Combine(Core.CSGODirectory, "csgo", lastBackupFilePath);
 
                 string valveBackupContent = lastBackupExists ? File.ReadAllText(lastBackupFilePath) : "";
 
@@ -420,7 +444,7 @@ namespace MatchZy
                     {
                         { "matchid", liveMatchId.ToString() },
                         { "timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") },
-                        { "map_name", Server.MapName },
+                        { "map_name", Core.Engine.GlobalVars.MapName },
                         { "mapnumber", matchConfig.CurrentMapNumber.ToString() },
                         { "round", round },
                         { "team1", GetTeamConfig("team1") },
@@ -437,8 +461,8 @@ namespace MatchZy
                         { "team2_score", t2score.ToString() },
                         { "team1_series_score", matchzyTeam1.seriesScore.ToString() },
                         { "team2_series_score", matchzyTeam2.seriesScore.ToString() },
-                        { "TerroristTimeOuts", gameRules.TerroristTimeOuts.ToString() },
-                        { "CTTimeOuts", gameRules.CTTimeOuts.ToString() },
+                        { "TerroristTimeOuts", gameRules?.TerroristTimeOuts.ToString() ?? "0" },
+                        { "CTTimeOuts", gameRules?.CTTimeOuts.ToString() ?? "0" },
                         { "match_loaded", isMatchSetup.ToString() },
                         { "match_config", GetMatchConfig() },
                         { "valve_backup", valveBackupContent }
@@ -458,13 +482,13 @@ namespace MatchZy
             }
             catch (Exception e)
             {
-                Log($"[CreateMatchZyRoundDataBackup FATAL] Error creating the JSON file: {e.Message}");
+                Logger.LogError($"[CreateMatchZyRoundDataBackup FATAL] Error creating the JSON file: {e.Message}");
             }
         }
 
         public List<string> GetBackups(string matchID)
         {
-            string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup");
+            string backupDir = Path.Combine(Core.CSGODirectory, "csgo", "MatchZyDataBackup");
 
 
             if (!Directory.Exists(backupDir))
@@ -524,7 +548,7 @@ namespace MatchZy
             }
             catch (Exception e)
             {
-                Log($"[GetBackupInfo FATAL] An error occurred: {e.Message}");
+                Logger.LogError($"[GetBackupInfo FATAL] An error occurred: {e.Message}");
                 return "";
             }
 
@@ -542,42 +566,52 @@ namespace MatchZy
             return Newtonsoft.Json.JsonConvert.SerializeObject(teamConfig);
         }
 
-        [ConsoleCommand("get5_loadbackup", "Restore the backup from the provided file")]
-        [ConsoleCommand("matchzy_loadbackup", "Restore the backup from the provided file")]
-        [CommandHelper(minArgs: 1, usage: "<backup_file_name>")]
-        public void OnLoadBackupCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_loadbackup", registerRaw: true)]
+        [CommandAlias("matchzy_loadbackup", registerRaw: true)]
+        public void OnLoadBackupCommand(ICommandContext context)
         {
+            if (context.Sender == null || !context.Sender.IsValid) return;
+            var player = context.Sender;
+            
             if (!IsPlayerAdmin(player, "css_restore", "@css/config"))
             {
                 SendPlayerNotAdminMessage(player);
                 return;
             }
             
-       
-           // var fileName = command.GetArg(1);
-           var  fileName = ExtractJsonFileName(command.ArgString);
-
+            if (context.Args.Length < 1)
+            {
+                context.Reply("Usage: !loadbackup <backup_file_name>");
+                return;
+            }
+            
+            var fileName = ExtractJsonFileName(string.Join(" ", context.Args));
 
             RestoreRoundBackup(player, fileName);
         }
 
-        [ConsoleCommand("get5_loadbackup_url", "Loads a backup from the given URL")]
-        [ConsoleCommand("matchzy_loadbackup_url", "Loads a backup from the given URL")]
-        public void LoadBackupFromURL(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_loadbackup_url", registerRaw: true)]
+        [CommandAlias("matchzy_loadbackup_url", registerRaw: true)]
+        public void LoadBackupFromURL(ICommandContext context)
         {
-            if (player != null) return;
+            if (context.Sender != null) return; // Only allow from server console
 
-            string url = command.ArgByIndex(1);
+            if (context.Args.Length < 1)
+            {
+                Logger.LogInformation("[LoadBackupFromURL] Usage: loadbackup_url <url> [headerName] [headerValue]");
+                return;
+            }
 
-            string headerName = command.ArgCount > 3 ? command.ArgByIndex(2) : "";
-            string headerValue = command.ArgCount > 3 ? command.ArgByIndex(3) : "";
+            string url = context.Args[0];
 
-            Log($"[LoadBackupFromURL] Backup Restore request received with URL: {url} headerName: {headerName} and headerValue: {headerValue}");
+            string headerName = context.Args.Length > 2 ? context.Args[1] : "";
+            string headerValue = context.Args.Length > 2 ? context.Args[2] : "";
+
+            Logger.LogInformation($"[LoadBackupFromURL] Backup Restore request received with URL: {url} headerName: {headerName} and headerValue: {headerValue}");
 
             if (!IsValidUrl(url))
             {
-                ReplyToUserCommand(player, Localizer["matchzy.mm.invalidurl", url]);
-                Log($"[LoadBackupFromURL] Invalid URL: {url}. Please provide a valid URL to load the backup!");
+                Logger.LogError($"[LoadBackupFromURL] Invalid URL: {url}. Please provide a valid URL to load the backup!");
                 return;
             }
             try
@@ -592,9 +626,9 @@ namespace MatchZy
                 if (response.IsSuccessStatusCode)
                 {
                     string jsonData = response.Content.ReadAsStringAsync().Result;
-                    Log($"[LoadBackupFromURL] Received following data: {jsonData}");
+                    Logger.LogInformation($"[LoadBackupFromURL] Received following data: {jsonData}");
                     string fileName = Guid.NewGuid().ToString() + ".json";
-                    string filePath = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup", fileName);
+                    string filePath = Path.Combine(Core.CSGODirectory, "MatchZyDataBackup", fileName);
 
                     string? directoryPath = Path.GetDirectoryName(filePath);
                     if (directoryPath != null && !Directory.Exists(directoryPath))
@@ -602,38 +636,40 @@ namespace MatchZy
                         Directory.CreateDirectory(directoryPath);
                     }
                     File.WriteAllText(filePath, jsonData);
-                    Log($"[LoadBackupFromURL] Data saved to: {filePath}");
+                    Logger.LogInformation($"[LoadBackupFromURL] Data saved to: {filePath}");
 
-                    RestoreRoundBackup(player, fileName);
+                    RestoreRoundBackup(null, fileName);
                 }
                 else
                 {
-                    ReplyToUserCommand(player, Localizer["matchzy.mm.httprequestfailed", response.StatusCode]);
-                    Log($"[LoadBackupFromURL] HTTP request failed with status code: {response.StatusCode}");
+                    Logger.LogError($"[LoadBackupFromURL] HTTP request failed with status code: {response.StatusCode}");
                 }
             }
             catch (Exception e)
             {
-                Log($"[LoadBackupFromURL - FATAL] An error occured: {e.Message}");
+                Logger.LogError($"[LoadBackupFromURL - FATAL] An error occured: {e.Message}");
                 return;
             }
         }
 
-        [ConsoleCommand("get5_listbackups", "List all the backups for the provided matchid")]
-        [ConsoleCommand("matchzy_listbackups", "List all the backups for the provided matchid")]
-        public void OnListBackupCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_listbackups", registerRaw: true)]
+        [CommandAlias("matchzy_listbackups", registerRaw: true)]
+        public void OnListBackupCommand(ICommandContext context)
         {
+            if (context.Sender == null || !context.Sender.IsValid) return;
+            var player = context.Sender;
+            
             if (!IsPlayerAdmin(player, "css_restore", "@css/config"))
             {
                 SendPlayerNotAdminMessage(player);
                 return;
             }
-            var matchId = command.ArgCount >= 2 ? command.GetArg(1) : liveMatchId.ToString();
+            var matchId = context.Args.Length >= 1 ? context.Args[0] : liveMatchId.ToString();
             List<string> backups = GetBackups(matchId);
 
             if (backups.Count == 0)
             {
-                command.ReplyToCommand("Found no backup files matching the provided parameters.");
+                context.Reply("Found no backup files matching the provided parameters.");
             }
 
             foreach (string backup in backups)
@@ -641,11 +677,11 @@ namespace MatchZy
                 string backupInfo = GetBackupInfo(backup);
                 if (backupInfo != "")
                 {
-                    command.ReplyToCommand(backupInfo);
+                    context.Reply(backupInfo);
                 }
                 else
                 {
-                    command.ReplyToCommand(backup);
+                    context.Reply(backup);
                 }
             }
         }

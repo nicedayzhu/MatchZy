@@ -1,7 +1,5 @@
 using System.Text.Json;
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Commands;
+using SwiftlyS2.Shared.Commands;
 using System.Text.Json.Serialization;
 using System.Runtime.Serialization;
 
@@ -92,8 +90,8 @@ namespace MatchZy
 
     public partial class MatchZy
     {
-        [ConsoleCommand("get5_status", "Returns get5 status")]
-        public void Get5StatusCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_status", registerRaw: true)]
+        public void Get5StatusCommand(ICommandContext context)
         {
             // TODO: Add remaining Get5 status data as specified in https://splewis.github.io/get5/latest/commands/#get5_status
             //       The missing attributes are:
@@ -166,13 +164,13 @@ namespace MatchZy
                 get5Status.RoundNumber = GetRoundNumer();
             }
 
-            command.ReplyToCommand(JsonSerializer.Serialize(get5Status));
+            context.Reply(JsonSerializer.Serialize(get5Status));
         }
 
-        [ConsoleCommand("get5_web_available", "Returns get5 web available")]
-        public void Get5WebAvailable(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_web_available", registerRaw: true)]
+        public void Get5WebAvailable(ICommandContext context)
         {
-            command.ReplyToCommand(JsonSerializer.Serialize(new G5WebAvailable { GameState = (int) getGet5Gamestate() }));
+            context.Reply(JsonSerializer.Serialize(new G5WebAvailable { GameState = (int) getGet5Gamestate() }));
         }
 
         private Get5GameState getGet5Gamestate()

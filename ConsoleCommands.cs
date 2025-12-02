@@ -1,19 +1,27 @@
-using CounterStrikeSharp.API;
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Cvars;
-using CounterStrikeSharp.API.Modules.Utils;
+using SwiftlyS2.Shared.Commands;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.Misc;
+using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.SchemaDefinitions;
+using SwiftlyS2.Shared.Schemas;
 using System.Text.RegularExpressions;
+using TeamEnum = SwiftlyS2.Shared.Players.Team;
+using Microsoft.Extensions.Logging;
+using ChatColors = SwiftlyS2.Shared.Helper.ChatColors;
 
 namespace MatchZy
 {
     public partial class MatchZy
     {
-        [ConsoleCommand("css_whitelist", "Toggles Whitelisting of players")]
-        [ConsoleCommand("css_wl", "Toggles Whitelisting of players")]
-        public void OnWLCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Toggles the whitelist requirement for matches.
+        /// Requires @css/config permission.
+        /// </summary>
+        [Command("whitelist", registerRaw: true, permission: "@css/config")]
+        [CommandAlias("wl", registerRaw: true)]
+        public void OnWLCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_whitelist", "@css/config"))
             {
                 isWhitelistRequired = !isWhitelistRequired;
@@ -35,10 +43,15 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_save_nades_as_global", "Toggles Global Lineups for players")]
-        [ConsoleCommand("css_globalnades", "Toggles Global Lineups for players")]
-        public void OnSaveNadesAsGlobalCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Toggles saving grenades as global (shared across all maps).
+        /// Requires @css/config permission.
+        /// </summary>
+        [Command("save_nades_as_global", registerRaw: true, permission: "@css/config")]
+        [CommandAlias("globalnades", registerRaw: true)]
+        public void OnSaveNadesAsGlobalCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_save_nades_as_global", "@css/config"))
             {
                 isSaveNadesAsGlobalEnabled = !isSaveNadesAsGlobalEnabled;
@@ -61,27 +74,31 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_ready", "Marks the player ready")]
-        public void OnPlayerReady(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Marks the player as ready for the match.
+        /// </summary>
+        [Command("ready", registerRaw: true)]
+        public void OnPlayerReady(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player == null) return;
-            Log($"[!ready command] Sent by: {player.UserId} readyAvailable: {readyAvailable} matchStarted: {matchStarted}");
+            Logger.LogInformation($"[!ready command] Sent by: {player.PlayerID} readyAvailable: {readyAvailable} matchStarted: {matchStarted}");
             if (readyAvailable && !matchStarted)
             {
-                if (player.UserId.HasValue)
+                if (player.IsValid)
                 {
-                    if (!playerReadyStatus.ContainsKey(player.UserId.Value))
+                    if (!playerReadyStatus.ContainsKey(player.PlayerID))
                     {
-                        playerReadyStatus[player.UserId.Value] = false;
+                        playerReadyStatus[player.PlayerID] = false;
                     }
-                    if (playerReadyStatus[player.UserId.Value])
+                    if (playerReadyStatus[player.PlayerID])
                     {
                         // player.PrintToChat($"{chatPrefix} You are already ready!");
                         PrintToPlayerChat(player, Localizer["matchzy.ready.markedready"]);
                     }
                     else
                     {
-                        playerReadyStatus[player.UserId.Value] = true;
+                        playerReadyStatus[player.PlayerID] = true;
                         // player.PrintToChat($"{chatPrefix} {Localizer["matchzy.youareready"]}");
                         PrintToPlayerChat(player, Localizer["matchzy.ready.markedready"]);
                     }
@@ -91,27 +108,31 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_unready", "Marks the player unready")]
-        [ConsoleCommand("css_notready", "Marks the player unready")]
-        public void OnPlayerUnReady(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Marks the player as not ready for the match.
+        /// </summary>
+        [Command("unready", registerRaw: true)]
+        [CommandAlias("notready", registerRaw: true)]
+        public void OnPlayerUnReady(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player == null) return;
-            Log($"[!unready command] {player.UserId}");
+            Logger.LogInformation($"[!unready command] {player.PlayerID}");
             if (readyAvailable && !matchStarted)
             {
-                if (player.UserId.HasValue)
+                if (player.IsValid)
                 {
-                    if (!playerReadyStatus.ContainsKey(player.UserId.Value))
+                    if (!playerReadyStatus.ContainsKey(player.PlayerID))
                     {
-                        playerReadyStatus[player.UserId.Value] = false;
+                        playerReadyStatus[player.PlayerID] = false;
                     }
-                    if (!playerReadyStatus[player.UserId.Value])
+                    if (!playerReadyStatus[player.PlayerID])
                     {
                         PrintToPlayerChat(player, Localizer["matchzy.ready.markedunready"]);
                     }
                     else
                     {
-                        playerReadyStatus[player.UserId.Value] = false;
+                        playerReadyStatus[player.PlayerID] = false;
                         PrintToPlayerChat(player, Localizer["matchzy.ready.markedunready"]);
                     }
                     HandleClanTags();
@@ -119,13 +140,14 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_stay", "Stays after knife round")]
-        public void OnTeamStay(CCSPlayerController? player, CommandInfo? command)
+        [Command("stay", registerRaw: true)]
+        public void OnTeamStay(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player == null || !isSideSelectionPhase) return;
 
-            Log($"[!stay command] {player.UserId}, TeamNum: {player.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
-            if (player.TeamNum == knifeWinner)
+            Logger.LogInformation($"[!stay command] {player.PlayerID}, TeamNum: {player.Controller.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
+            if (player.Controller.TeamNum == knifeWinner)
             {
                 PrintToAllChat(Localizer["matchzy.knife.decidedtostay", knifeWinnerName]);
                 // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} has decided to stay!");
@@ -133,17 +155,18 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_switch", "Switch after knife round")]
-        [ConsoleCommand("css_swap", "Switch after knife round")]
-        public void OnTeamSwitch(CCSPlayerController? player, CommandInfo? command)
+        [Command("switch", registerRaw: true)]
+        [CommandAlias("swap", registerRaw: true)]
+        public void OnTeamSwitch(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player == null || !isSideSelectionPhase) return;
 
-            Log($"[!switch command] {player.UserId}, TeamNum: {player.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
+            Logger.LogInformation($"[!switch command] {player.PlayerID}, TeamNum: {player.Controller.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
 
-            if (player.TeamNum == knifeWinner)
+            if (player.Controller.TeamNum == knifeWinner)
             {
-                Server.ExecuteCommand("mp_swapteams;");
+                Core.Engine.ExecuteCommand("mp_swapteams;");
                 SwapSidesInTeamData(true);
                 PrintToAllChat(Localizer["matchzy.knife.decidedtoswitch", knifeWinnerName]);
                 // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} has decided to switch!");
@@ -151,87 +174,102 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_t", "Switches team to Terrorist")]
-        public void OnTCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("t", registerRaw: true)]
+        public void OnTCommand(ICommandContext context)
         {
-            if (player == null || player.UserId == null) return;
+            IPlayer? player = context.Sender;
+            if (player == null || !player.IsValid) return;
             if (isVeto) {
-                HandleSideChoice(CsTeam.Terrorist, player.UserId.Value);
+                HandleSideChoice(TeamEnum.T, player.PlayerID);
                 return;
             }
 
-            if (isSideSelectionPhase && player.TeamNum == knifeWinner) {
-                if (player.Team == CsTeam.Terrorist) {
-                    OnTeamStay(player, command);
+            if (isSideSelectionPhase && player.Controller.TeamNum == knifeWinner) {
+                if (player.Controller.TeamNum == (byte)TeamEnum.T) {
+                    OnTeamStay(context);
                 } else {
-                    OnTeamSwitch(player, command);
+                    OnTeamSwitch(context);
                 }
             }
 
             if (!isPractice) return;
-            SideSwitchCommand(player, CsTeam.Terrorist);
+            SideSwitchCommand(player, TeamEnum.T);
         }
 
-        [ConsoleCommand("css_ct", "Switches team to Counter-Terrorist")]
-        public void OnCTCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("ct", registerRaw: true)]
+        public void OnCTCommand(ICommandContext context)
         {
-            if (player == null || player.UserId == null) return;
+            IPlayer? player = context.Sender;
+            if (player == null || !player.IsValid) return;
             if (isVeto) {
-                HandleSideChoice(CsTeam.CounterTerrorist, player.UserId.Value);
+                HandleSideChoice(TeamEnum.CT, player.PlayerID);
                 return;
             }
 
-            if (isSideSelectionPhase && player.TeamNum == knifeWinner) {
-                if (player.Team == CsTeam.CounterTerrorist) {
-                    OnTeamStay(player, command);
+            if (isSideSelectionPhase && player.Controller.TeamNum == knifeWinner) {
+                if (player.Controller.TeamNum == (byte)TeamEnum.CT) {
+                    OnTeamStay(context);
                 } else {
-                    OnTeamSwitch(player, command);
+                    OnTeamSwitch(context);
                 }
                 return;
             }
 
             if (!isPractice) return;
-            SideSwitchCommand(player, CsTeam.CounterTerrorist);
+            SideSwitchCommand(player, TeamEnum.CT);
         }
 
-        [ConsoleCommand("css_tech", "Pause the match")]
-        public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Initiates a technical pause. Requires appropriate permissions.
+        /// </summary>
+        [Command("tech", registerRaw: true)]
+        public void OnTechCommand(ICommandContext context)
         {
-            PauseMatch(player, command);
+            IPlayer? player = context.Sender;
+            PauseMatch(player, context);
         }
 
-        [ConsoleCommand("css_pause", "Pause the match")]
-        public void OnPauseCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Pauses the match. Can be used for tactical or technical pauses depending on configuration.
+        /// </summary>
+        [Command("matchzy_pause", registerRaw: true)]
+        // Note: "pause" alias removed to avoid conflict with SwiftlyS2/system commands
+        public void OnPauseCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (isPauseCommandForTactical)
             {
-                OnTacCommand(player, command);
+                OnTacCommand(context);
             }
             else
             {
-                PauseMatch(player, command);
+                PauseMatch(player, context);
             }
         }
 
-        [ConsoleCommand("css_fp", "Pause the match an admin")]
-        [ConsoleCommand("css_forcepause", "Pause the match as an admin")]
-        [ConsoleCommand("sm_pause", "Pause the match as an admin")]
-        public void OnForcePauseCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("fp", registerRaw: true)]
+        [CommandAlias("forcepause", registerRaw: true)]
+        [CommandAlias("sm_pause", registerRaw: true)]
+        public void OnForcePauseCommand(ICommandContext context)
         {
-            ForcePauseMatch(player, command);
+            IPlayer? player = context.Sender;
+            ForcePauseMatch(player, context);
         }
 
-        [ConsoleCommand("css_fup", "Unpause the match an admin")]
-        [ConsoleCommand("css_forceunpause", "Unpause the match as an admin")]
-        [ConsoleCommand("sm_unpause", "Unpause the match as an admin")]
-        public void OnForceUnpauseCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("fup", registerRaw: true)]
+        [CommandAlias("forceunpause", registerRaw: true)]
+        [CommandAlias("sm_unpause", registerRaw: true)]
+        public void OnForceUnpauseCommand(ICommandContext context)
         {
-            ForceUnpauseMatch(player, command);
+            IPlayer? player = context.Sender;
+            ForceUnpauseMatch(player, context);
         }
 
-        [ConsoleCommand("css_unpause", "Unpause the match")]
-        public void OnUnpauseCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("matchzy_unpause", registerRaw: true)]
+        // Note: "unpause" alias removed to avoid conflict with SwiftlyS2/system commands
+        public void OnUnpauseCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (isMatchLive && isPaused)
             {
                 var pauseTeamName = unpauseData["pauseTeam"];
@@ -243,7 +281,7 @@ namespace MatchZy
 
                 string unpauseTeamName = "Admin";
                 string remainingUnpauseTeam = "Admin";
-                if (player?.TeamNum == 2)
+                if (player?.Controller.TeamNum == 2)
                 {
                     unpauseTeamName = reverseTeamSides["TERRORIST"].teamName;
                     remainingUnpauseTeam = reverseTeamSides["CT"].teamName;
@@ -253,7 +291,7 @@ namespace MatchZy
                     }
 
                 }
-                else if (player?.TeamNum == 3)
+                else if (player?.Controller.TeamNum == 3)
                 {
                     unpauseTeamName = reverseTeamSides["CT"].teamName;
                     remainingUnpauseTeam = reverseTeamSides["TERRORIST"].teamName;
@@ -269,7 +307,7 @@ namespace MatchZy
                 if ((bool)unpauseData["t"] && (bool)unpauseData["ct"])
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamsunpausedthematch"]);
-                    Server.ExecuteCommand("mp_unpause_match;");
+                    Core.Engine.ExecuteCommand("mp_unpause_match;");
                     isPaused = false;
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
@@ -277,7 +315,7 @@ namespace MatchZy
                 else if (unpauseTeamName == "Admin")
                 {
                     PrintToAllChat(Localizer["matchzy.pause.adminunpausedthematch"]);
-                    Server.ExecuteCommand("mp_unpause_match;");
+                    Core.Engine.ExecuteCommand("mp_unpause_match;");
                     isPaused = false;
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
@@ -289,32 +327,36 @@ namespace MatchZy
                 }
                 if (!isPaused && pausedStateTimer != null)
                 {
-                    pausedStateTimer.Kill();
+                    pausedStateTimer.Cancel();
                     pausedStateTimer = null;
                 }
             }
         }
 
-        [ConsoleCommand("css_tac", "Starts a tactical timeout for the requested team")]
-        public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Initiates a tactical pause. Requires appropriate permissions.
+        /// </summary>
+        [Command("tac", registerRaw: true)]
+        public void OnTacCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player == null) return;
 
             if (matchStarted && isMatchLive)
             {
-                Log($"[.tac command sent via chat] Sent by: {player.UserId}, connectedPlayers: {connectedPlayers}");
+                Logger.LogInformation($"[.tac command sent via chat] Sent by: {player.PlayerID}, connectedPlayers: {connectedPlayers}");
                 if (isPaused)
                 {
                     // ReplyToUserCommand(player, "Match is already paused, cannot start a tactical timeout!");
                     ReplyToUserCommand(player, Localizer["matchzy.cc.matchpaused"]);
                     return;
                 }
-                var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
-                if (player.TeamNum == 2)
+                var gameRules = Core.EntitySystem.GetAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
+                if (player.Controller.TeamNum == 2)
                 {
                     if (gameRules.TerroristTimeOuts > 0)
                     {
-                        Server.ExecuteCommand("timeout_terrorist_start");
+                        Core.Engine.ExecuteCommand("timeout_terrorist_start");
                     }
                     else
                     {
@@ -322,11 +364,11 @@ namespace MatchZy
                         ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
                     }
                 }
-                else if (player.TeamNum == 3)
+                else if (player.Controller.TeamNum == 3)
                 {
                     if (gameRules.CTTimeOuts > 0)
                     {
-                        Server.ExecuteCommand("timeout_ct_start");
+                        Core.Engine.ExecuteCommand("timeout_ct_start");
                     }
                     else
                     {
@@ -337,10 +379,11 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_skipveto", "Skips the current veto phase")]
-        [ConsoleCommand("css_sv", "Skips the current veto phase")]
-        public void OnSkipVetoCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("skipveto", registerRaw: true)]
+        [CommandAlias("sv", registerRaw: true)]
+        public void OnSkipVetoCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_skipveto", "@css/config"))
             {
                 if (matchStarted)
@@ -377,10 +420,14 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_roundknife", "Toggles knife round for the match")]
-        [ConsoleCommand("css_rk", "Toggles knife round for the match")]
-        public void OnKnifeCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Toggles knife round requirement. Requires @css/config permission.
+        /// </summary>
+        [Command("roundknife", registerRaw: true, permission: "@css/config")]
+        [CommandAlias("rk", registerRaw: true)]
+        public void OnKnifeCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_roundknife", "@css/config"))
             {
                 isKnifeRequired = !isKnifeRequired;
@@ -402,14 +449,15 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_readyrequired", "Sets number of ready players required to start the match")]
-        public void OnReadyRequiredCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("readyrequired", registerRaw: true)]
+        public void OnReadyRequiredCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_readyrequired", "@css/config"))
             {
-                if (command.ArgCount >= 2)
+                if (context.Args.Length >= 1)
                 {
-                    string commandArg = command.ArgByIndex(1);
+                    string commandArg = context.Args[0];
                     HandleReadyRequiredCommand(player, commandArg);
                 }
                 else
@@ -425,9 +473,10 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_settings", "Shows the current match configuration/settings")]
-        public void OnMatchSettingsCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("settings", registerRaw: true)]
+        public void OnMatchSettingsCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (player == null) return;
 
             if (IsPlayerAdmin(player, "css_settings", "@css/config"))
@@ -459,11 +508,12 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_endmatch", "Ends and resets the current match")]
-        [ConsoleCommand("get5_endmatch", "Ends and resets the current match")]
-        [ConsoleCommand("css_forceend", "Ends and resets the current match")]
-        public void OnEndMatchCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("endmatch", registerRaw: true)]
+        [CommandAlias("get5_endmatch", registerRaw: true)]
+        [CommandAlias("forceend", registerRaw: true)]
+        public void OnEndMatchCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_endmatch", "@css/config"))
             {
                 if (!isPractice)
@@ -484,10 +534,15 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_restart", "Restarts the match")]
-        [ConsoleCommand("css_rr", "Restarts the match")]
-        public void OnRestartMatchCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Restarts the match. Requires @css/config permission.
+        /// </summary>
+        [Command("matchzy_restart", registerRaw: true, permission: "@css/config")]
+        // Note: "restart" alias removed to avoid conflict with SwiftlyS2/system commands
+        [CommandAlias("rr", registerRaw: true)]
+        public void OnRestartMatchCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_restart", "@css/config"))
             {
                 if (!isPractice)
@@ -506,45 +561,52 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_map", "Changes the map using changelevel")]
-        public void OnChangeMapCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("matchzy_map", registerRaw: true)]
+        // Note: "map" alias removed to avoid conflict with SwiftlyS2/system commands
+        public void OnChangeMapCommand(ICommandContext context)
         {
-            var mapName = command.ArgByIndex(1);
+            IPlayer? player = context.Sender;
+            if (context.Args.Length < 1) return;
+            var mapName = context.Args[0];
             HandleMapChangeCommand(player, mapName);
         }
 
-        [ConsoleCommand("css_rmap", "Reloads the current map")]
-        private void OnMapReloadCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("rmap", registerRaw: true)]
+        private void OnMapReloadCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
 
             if (!IsPlayerAdmin(player))
             {
                 SendPlayerNotAdminMessage(player);
                 return;
             }
-            string currentMapName = Server.MapName;
+            string currentMapName = Core.Engine.GlobalVars.MapName;
             if (long.TryParse(currentMapName, out _))
             { // Check if mapName is a long for workshop map ids
-                Server.ExecuteCommand($"bot_kick");
-                Server.ExecuteCommand($"host_workshop_map \"{currentMapName}\"");
-            }
-            else if (Server.IsMapValid(currentMapName))
-            {
-                Server.ExecuteCommand($"bot_kick");
-                Server.ExecuteCommand($"changelevel \"{currentMapName}\"");
+                Core.Engine.ExecuteCommand($"bot_kick");
+                Core.Engine.ExecuteCommand($"host_workshop_map \"{currentMapName}\"");
             }
             else
             {
-                // ReplyToUserCommand(player, "Invalid map name!");
-                ReplyToUserCommand(player, Localizer["matchzy.cc.invalidmap"]);
+                if (Core.Engine.IsMapValid(currentMapName))
+                {
+                Core.Engine.ExecuteCommand($"bot_kick");
+                Core.Engine.ExecuteCommand($"changelevel \"{currentMapName}\"");
+            }
+                else
+                {
+                    ReplyToUserCommand(player, Localizer["matchzy.cc.invalidmap"]);
+                }
             }
         }
 
-        [ConsoleCommand("css_start", "Force starts the match")]
-        [ConsoleCommand("css_force", "Force starts the match")]
-        [ConsoleCommand("css_forcestart", "Force starts the match")]
-        public void OnStartCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("start", registerRaw: true)]
+        [CommandAlias("force", registerRaw: true)]
+        [CommandAlias("forcestart", registerRaw: true)]
+        public void OnStartCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_start", "@css/config"))
             {
                 if (isPractice)
@@ -571,13 +633,16 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_asay", "Say as an admin")]
-        public void OnAdminSay(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Sends an admin chat message. Requires @css/chat permission.
+        /// </summary>
+        [Command("asay", registerRaw: true, permission: "@css/chat")]
+        public void OnAdminSay(ICommandContext context)
         {
-            if (command == null) return;
+            IPlayer? player = context.Sender;
             if (player == null)
             {
-                Server.PrintToChatAll($"{adminChatPrefix} {command.ArgString}");
+                Core.PlayerManager.SendChat($"{adminChatPrefix} {string.Join(" ", context.Args)}");
                 return;
             }
             if (!IsPlayerAdmin(player, "css_asay", "@css/chat"))
@@ -585,17 +650,14 @@ namespace MatchZy
                 SendPlayerNotAdminMessage(player);
                 return;
             }
-            string message = "";
-            for (int i = 1; i < command.ArgCount; i++)
-            {
-                message += command.ArgByIndex(i) + " ";
-            }
-            Server.PrintToChatAll($"{adminChatPrefix} {message}");
+            string message = string.Join(" ", context.Args);
+            Core.PlayerManager.SendChat($"{adminChatPrefix} {message}");
         }
 
-        [ConsoleCommand("reload_admins", "Reload admins of MatchZy")]
-        public void OnReloadAdmins(CCSPlayerController? player, CommandInfo? command)
+        [Command("reload_admins", registerRaw: true)]
+        public void OnReloadAdmins(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "reload_admins", "@css/config"))
             {
                 LoadAdmins();
@@ -607,9 +669,10 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_match", "Starts match mode")]
-        public void OnMatchCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("match", registerRaw: true)]
+        public void OnMatchCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (!IsPlayerAdmin(player, "css_match", "@css/map", "@custom/prac"))
             {
                 SendPlayerNotAdminMessage(player);
@@ -626,9 +689,10 @@ namespace MatchZy
             StartMatchMode();
         }
 
-        [ConsoleCommand("css_exitprac", "Starts match mode")]
-        public void OnExitPracCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("exitprac", registerRaw: true)]
+        public void OnExitPracCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (!IsPlayerAdmin(player, "css_exitprac", "@css/map", "@custom/prac"))
             {
                 SendPlayerNotAdminMessage(player);
@@ -645,29 +709,37 @@ namespace MatchZy
             StartMatchMode();
         }
 
-        [ConsoleCommand("css_rcon", "Triggers provided command on the server")]
-        public void OnRconCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("matchzy_rcon", registerRaw: true)]
+        // Note: "rcon" alias removed to avoid conflict with SwiftlyS2/system commands
+        public void OnRconCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (!IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
             {
                 SendPlayerNotAdminMessage(player);
                 return;
             }
-            Server.ExecuteCommand(command.ArgString);
+            Core.Engine.ExecuteCommand(string.Join(" ", context.Args));
             // ReplyToUserCommand(player, "Command sent successfully!");
             ReplyToUserCommand(player, Localizer["matchzy.cc.rcon"]);
 
         }
 
-        [ConsoleCommand("css_help", "Triggers provided command on the server")]
-        public void OnHelpCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("matchzy_help", registerRaw: true)]
+        // Note: "help" alias removed to avoid conflict with SwiftlyS2/system commands
+        public void OnHelpCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             SendAvailableCommandsMessage(player);
         }
 
-        [ConsoleCommand("css_playout", "Toggles playout (Playing of max rounds)")]
-        public void OnPlayoutCommand(CCSPlayerController? player, CommandInfo? command)
+        /// <summary>
+        /// Toggles playout mode. Requires @css/config permission.
+        /// </summary>
+        [Command("playout", registerRaw: true, permission: "@css/config")]
+        public void OnPlayoutCommand(ICommandContext context)
         {
+            IPlayer? player = context.Sender;
             if (IsPlayerAdmin(player, "css_playout", "@css/config"))
             {
                 isPlayOutEnabled = !isPlayOutEnabled;
@@ -692,15 +764,15 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("version", "Returns server version")]
-        public void OnVersionCommand(CCSPlayerController? player, CommandInfo? command)
+        [Command("version", registerRaw: true)]
+        public void OnVersionCommand(ICommandContext context)
         {
-            if (command == null) return;
-            string steamInfFilePath = Path.Combine(Server.GameDirectory, "csgo", "steam.inf");
+            string steamInfFilePath = Path.Combine(Core.CSGODirectory, "steam.inf");
 
             if (!File.Exists(steamInfFilePath))
             {
-                command.ReplyToCommand("Unable to locate steam.inf file!");
+                context.Reply("Unable to locate steam.inf file!");
+                return;
             }
             var steamInfContent = File.ReadAllText(steamInfFilePath);
 
@@ -711,27 +783,29 @@ namespace MatchZy
             string? serverVersion = match.Success ? match.Groups[1].Value : null;
 
             // Currently returning only server version to show server status as available on Get5
-            command.ReplyToCommand((serverVersion != null) ? $"Protocol version {serverVersion} [{serverVersion}/{serverVersion}]" : "Unable to get server version");
+            context.Reply((serverVersion != null) ? $"Protocol version {serverVersion} [{serverVersion}/{serverVersion}]" : "Unable to get server version");
         }
 
         // Overrides noclip console command. Perform the changes on server side.
-        public HookResult OnConsoleNoClip(CCSPlayerController? player, CommandInfo? cmd) {
-            if (player == null || !player.PawnIsAlive || player.Team == CsTeam.Spectator || player.Team == CsTeam.None)
+        public HookResult OnConsoleNoClip(ICommandContext context, IPlayer? player) {
+            if (player == null || !player.IsValid || player.Controller.TeamNum == (byte)TeamEnum.Spectator)
                 return HookResult.Stop;
-            bool cheatsEnabled = ConVar.Find("sv_cheats")!.GetPrimitiveValue<bool>();
+            var cheatsConVar = Core.ConVar.Find<bool>("sv_cheats");
+            bool cheatsEnabled = cheatsConVar != null ? cheatsConVar.Value : false;
             if (!cheatsEnabled) {
                 return HookResult.Stop;
             }
 
             // inspired by cs2-noclip
-            if (player.PlayerPawn.Value!.MoveType == MoveType_t.MOVETYPE_NOCLIP) {
-                player.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_WALK;
-                player.PlayerPawn.Value.ActualMoveType = MoveType_t.MOVETYPE_WALK;
-                Utilities.SetStateChanged(player.PlayerPawn.Value, "CBaseEntity", "m_MoveType");
+            var pawn = player.RequiredPlayerPawn;
+            if (pawn.MoveType == MoveType_t.MOVETYPE_NOCLIP) {
+                pawn.MoveType = MoveType_t.MOVETYPE_WALK;
+                pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
+                // Note: In SwiftlyS2, property changes are automatically synchronized, SetStateChanged may not be needed
             } else {
-                player.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_NOCLIP;
-                player.PlayerPawn.Value.ActualMoveType = MoveType_t.MOVETYPE_OBSERVER;
-                Utilities.SetStateChanged(player.PlayerPawn.Value, "CBaseEntity", "m_MoveType");
+                pawn.MoveType = MoveType_t.MOVETYPE_NOCLIP;
+                pawn.ActualMoveType = MoveType_t.MOVETYPE_OBSERVER;
+                // Note: In SwiftlyS2, property changes are automatically synchronized, SetStateChanged may not be needed
             }
 
             return HookResult.Stop;

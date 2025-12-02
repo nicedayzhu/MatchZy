@@ -1,11 +1,9 @@
-using CounterStrikeSharp.API;
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Cvars;
+using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Commands;
 using System.IO.Compression;
 using System.Net.Http.Json;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace MatchZy
 {
@@ -26,18 +24,18 @@ namespace MatchZy
         {
             if (!isDemoRecordingEnabled)
             {
-                Log("[StartDemoRecording] Demo recording is disabled.");
+                Logger.LogInformation("[StartDemoRecording] Demo recording is disabled.");
                 return;
             }
             if (isDemoRecording)
             {
-                Log("[StartDemoRecording] Demo recording is already in progress.");
+                Logger.LogInformation("[StartDemoRecording] Demo recording is already in progress.");
                 return;
             }
             string demoFileName = FormatCvarValue(demoNameFormat.Replace(" ", "_")) + ".dem";
             try
             {
-                string? directoryPath = Path.GetDirectoryName(Path.Join(Server.GameDirectory + "/csgo/", demoPath));
+                string? directoryPath = Path.GetDirectoryName(Path.Join(Core.CSGODirectory + "/", demoPath));
                 if (directoryPath != null)
                 {
                     if (!Directory.Exists(directoryPath))
@@ -47,15 +45,15 @@ namespace MatchZy
                 }
                 string tempDemoPath = demoPath == "" ? demoFileName : demoPath + demoFileName;
                 activeDemoFile = tempDemoPath;
-                Log($"[StartDemoRecoding] Starting demo recording, path: {tempDemoPath}");
-                Server.ExecuteCommand($"tv_record {tempDemoPath}");
+                Logger.LogInformation($"[StartDemoRecoding] Starting demo recording, path: {tempDemoPath}");
+                Core.Engine.ExecuteCommand($"tv_record {tempDemoPath}");
                 isDemoRecording = true;
             }
             catch (Exception ex)
             {
-                Log($"[StartDemoRecording - FATAL] Error: {ex.Message}. Starting demo recording with path. Name: {demoFileName}");
+                Logger.LogInformation($"[StartDemoRecording - FATAL] Error: {ex.Message}. Starting demo recording with path. Name: {demoFileName}");
                 // This is to avoid demo loss in any case of exception
-                Server.ExecuteCommand($"tv_record {demoFileName}");
+                Core.Engine.ExecuteCommand($"tv_record {demoFileName}");
                 isDemoRecording = true;
             }
 
@@ -63,18 +61,18 @@ namespace MatchZy
 
         public void StopDemoRecording(float delay, string activeDemoFile, long liveMatchId, int currentMapNumber)
         {
-            Log($"[StopDemoRecording] Going to stop demorecording in {delay}s");
-            string demoPath = Path.Join(Server.GameDirectory + "/csgo/", activeDemoFile);
+            Logger.LogInformation($"[StopDemoRecording] Going to stop demorecording in {delay}s");
+            string demoPath = Path.Join(Core.CSGODirectory + "/", activeDemoFile);
             (int t1score, int t2score) = GetTeamsScore();
             int roundNumber = t1score + t2score;
-            AddTimer(delay, () =>
+            SchedulerService.DelayBySeconds(delay, () =>
             {
                 if (isDemoRecording)
                 {
-                    Server.ExecuteCommand($"tv_stoprecord");
+                    Core.Engine.ExecuteCommand($"tv_stoprecord");
                 }
                 isDemoRecording = false;
-                AddTimer(15, () =>
+                SchedulerService.DelayBySeconds(15, () =>
                 {
                     Task.Run(async () =>
                     {
@@ -86,35 +84,41 @@ namespace MatchZy
 
         public int GetTvDelay()
         {
-            bool tvEnable = ConVar.Find("tv_enable")!.GetPrimitiveValue<bool>();
-            if (!tvEnable) return 0;
+            var tvEnable = Core.ConVar.Find<bool>("tv_enable");
+            if (tvEnable == null || !tvEnable.Value) return 0;
 
-            bool tvEnable1 = ConVar.Find("tv_enable1")!.GetPrimitiveValue<bool>();
-            int tvDelay = ConVar.Find("tv_delay")!.GetPrimitiveValue<int>();
+            var tvEnable1 = Core.ConVar.Find<bool>("tv_enable1");
+            var tvDelay = Core.ConVar.Find<int>("tv_delay");
+            if (tvDelay == null) return 0;
+            int tvDelayValue = tvDelay.Value;
 
-            if (!tvEnable1) return tvDelay;
-            int tvDelay1 = ConVar.Find("tv_delay1")!.GetPrimitiveValue<int>();
+            if (tvEnable1 == null || !tvEnable1.Value) return tvDelayValue;
+            var tvDelay1 = Core.ConVar.Find<int>("tv_delay1");
+            if (tvDelay1 == null) return tvDelayValue;
+            int tvDelay1Value = tvDelay1.Value;
 
-            if (tvDelay < tvDelay1) return tvDelay1;
-            return tvDelay;
+            if (tvDelayValue < tvDelay1Value) return tvDelay1Value;
+            return tvDelayValue;
         }
 
-        [ConsoleCommand("get5_demo_upload_header_key", "If defined, a custom HTTP header with this name is added to the HTTP requests for demos")]
-        [ConsoleCommand("matchzy_demo_upload_header_key", "If defined, a custom HTTP header with this name is added to the HTTP requests for demos")]
-        public void DemoUploadHeaderKeyCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_demo_upload_header_key", registerRaw: true)]
+        [CommandAlias("matchzy_demo_upload_header_key", registerRaw: true)]
+        public void DemoUploadHeaderKeyCommand(ICommandContext context)
         {
-            if (player != null) return;
-            string header = command.ArgByIndex(1).Trim();
+            if (context.Sender != null) return;
+            if (context.Args.Length < 1) return;
+            string header = context.Args[0].Trim();
 
             if (header != "") demoUploadHeaderKey = header;
         }
 
-        [ConsoleCommand("get5_demo_upload_header_value", "If defined, the value of the custom header added to the demos sent over HTTP")]
-        [ConsoleCommand("matchzy_demo_upload_header_value", "If defined, the value of the custom header added to the demos sent over HTTP")]
-        public void DemoUploadHeaderValueCommand(CCSPlayerController? player, CommandInfo command)
+        [Command("get5_demo_upload_header_value", registerRaw: true)]
+        [CommandAlias("matchzy_demo_upload_header_value", registerRaw: true)]
+        public void DemoUploadHeaderValueCommand(ICommandContext context)
         {
-            if (player != null) return;
-            string headerValue = command.ArgByIndex(1).Trim();
+            if (context.Sender != null) return;
+            if (context.Args.Length < 1) return;
+            string headerValue = context.Args[0].Trim();
 
             if (headerValue != "") demoUploadHeaderValue = headerValue;
         }

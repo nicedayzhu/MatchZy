@@ -1,6 +1,6 @@
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Utils;
+using SwiftlyS2.Shared.Commands;
+using SwiftlyS2.Shared.Players;
+using TeamEnum = SwiftlyS2.Shared.Players.Team;
 
 namespace MatchZy;
 
@@ -9,7 +9,8 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    public void TechPause(CCSPlayerController? player, CommandInfo? command)
+    // TODO: Update to use ICommandContext
+    public void TechPause(IPlayer? player, ICommandContext? command)
     {
         // Tech Pause is WIP
         return;
@@ -48,18 +49,18 @@ public partial class MatchZy
             return;
         }
 
-        if (player.Team == CsTeam.Spectator || player.Team == CsTeam.None) return;
+        if (player.RequiredController.TeamNum == (byte)TeamEnum.Spectator) return;
 
-        if (!techPauseEnabled.Value && player != null)
+        if (!techPauseEnabled && player != null)
         {
             PrintToPlayerChat(player, Localizer["matchzy.ready.techpausenotenabled"]);
             return;
         }
 
-        if (maxTechPausesAllowed.Value <= 0) return;
+        if (maxTechPausesAllowed <= 0) return;
 
-        Team playerTeam = (player!.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-        if (technicalPauseUsed[playerTeam] >= maxTechPausesAllowed.Value)
+        Team playerTeam = (player!.RequiredController.TeamNum == (byte)TeamEnum.CT) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
+        if (technicalPauseUsed[playerTeam] >= maxTechPausesAllowed)
         {
             PrintToPlayerChat(player, Localizer["matchzy.pause.notechpauseleft", playerTeam.teamName]);
             return;

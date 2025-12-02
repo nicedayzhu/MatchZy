@@ -1,6 +1,7 @@
-using CounterStrikeSharp.API;
-using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Utils;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.GameEventDefinitions;
+using ChatColors = SwiftlyS2.Shared.Helper.ChatColors;
+using Microsoft.Extensions.Logging;
 
 
 namespace MatchZy
@@ -12,23 +13,25 @@ namespace MatchZy
         private void InitPlayerDamageInfo()
         {
             foreach (var key in playerData.Keys) {
-                if (!playerData[key].IsValid) continue;
-                if (playerData[key].IsBot) continue;
+                var attacker = playerData[key];
+                if (attacker == null || !attacker.IsValid) continue;
+                if (attacker.IsFakeClient) continue;
                 int attackerId = key;
                 foreach (var key2 in playerData.Keys) {
                     if (key == key2) continue;
-                    if (!playerData[key2].IsValid || playerData[key2].IsBot) continue;
-                    if (playerData[key].TeamNum == playerData[key2].TeamNum) continue;
-                    if (playerData[key].TeamNum == 2) {
-                        if (playerData[key2].TeamNum != 3) continue;
+                    var target = playerData[key2];
+                    if (target == null || !target.IsValid || target.IsFakeClient) continue;
+                    if ((int)attacker.RequiredController.TeamNum == (int)target.RequiredController.TeamNum) continue;
+                    if ((int)attacker.RequiredController.TeamNum == 2) {
+                        if ((int)target.RequiredController.TeamNum != 3) continue;
                         int targetId = key2;
                         if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
                             playerDamageInfo[attackerId] = attackerInfo = new Dictionary<int, DamagePlayerInfo>();
 
                         if (!attackerInfo.TryGetValue(targetId, out var targetInfo))
                             attackerInfo[targetId] = targetInfo = new DamagePlayerInfo();
-                    } else if (playerData[key].TeamNum == 3) {
-                        if (playerData[key2].TeamNum != 2) continue;
+                    } else if ((int)attacker.RequiredController.TeamNum == 3) {
+                        if ((int)target.RequiredController.TeamNum != 2) continue;
                         int targetId = key2;
                         if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
                             playerDamageInfo[attackerId] = attackerInfo = new Dictionary<int, DamagePlayerInfo>();
@@ -43,10 +46,10 @@ namespace MatchZy
 		public Dictionary<int, Dictionary<int, DamagePlayerInfo>> playerDamageInfo = new Dictionary<int, Dictionary<int, DamagePlayerInfo>>();
 		private void UpdatePlayerDamageInfo(EventPlayerHurt @event, int targetId)
 		{
-            CCSPlayerController? attacker = @event.Attacker;
+            IPlayer? attacker = Core.PlayerManager.GetPlayer(@event.Attacker);
 
-            if (!IsPlayerValid(attacker)) return;
-			int attackerId = (int)attacker!.UserId!;
+            if (attacker == null || !attacker.IsValid) return;
+			int attackerId = attacker.PlayerID;
 			if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
 				playerDamageInfo[attackerId] = attackerInfo = new Dictionary<int, DamagePlayerInfo>();
 
@@ -59,7 +62,7 @@ namespace MatchZy
 
         private void ShowDamageInfo()
         {
-            if (!enableDamageReport.Value) return;
+            if (!enableDamageReport) return;
             try
             {
                 HashSet<(int, int)> processedPairs = new HashSet<(int, int)>();
@@ -92,16 +95,18 @@ namespace MatchZy
                         if (attackerController != null && targetController != null)
                         {
                             if (!attackerController.IsValid || !targetController.IsValid) continue;
-                            if (attackerController.Connected != PlayerConnectedState.PlayerConnected) continue;
-                            if (targetController.Connected != PlayerConnectedState.PlayerConnected) continue;
-                            if (!attackerController.PlayerPawn.IsValid || !targetController.PlayerPawn.IsValid) continue;
-                            if (attackerController.PlayerPawn.Value == null || targetController.PlayerPawn.Value == null) continue;
+                            // TODO: Check player connection state in SwiftlyS2
+                            // if (attackerController.Connected != PlayerConnectedState.PlayerConnected) continue;
+                            // if (targetController.Connected != PlayerConnectedState.PlayerConnected) continue;
+                            var attackerPawn = attackerController.PlayerPawn;
+                            var targetPawn = targetController.PlayerPawn;
+                            if (attackerPawn == null || targetPawn == null) continue;
 
-                            int attackerHP = attackerController.PlayerPawn.Value.Health < 0 ? 0 : attackerController.PlayerPawn.Value.Health;
-                            string attackerName = attackerController.PlayerName;
+                            int attackerHP = attackerPawn.Health < 0 ? 0 : attackerPawn.Health;
+                            string attackerName = attackerController.RequiredController.PlayerName;
 
-                            int targetHP = targetController.PlayerPawn.Value.Health < 0 ? 0 : targetController.PlayerPawn.Value.Health;
-                            string targetName = targetController.PlayerName;
+                            int targetHP = targetPawn.Health < 0 ? 0 : targetPawn.Health;
+                            string targetName = targetController.RequiredController.PlayerName;
 
                             PrintToPlayerChat(attackerController, $"{ChatColors.Green}To: [{damageGiven} / {hitsGiven} hits] From: [{damageTaken} / {hitsTaken} hits] - {targetName} - ({targetHP} hp){ChatColors.Default}");
                             PrintToPlayerChat(targetController, $"{ChatColors.Green}To: [{damageTaken} / {hitsTaken} hits] From: [{damageGiven} / {hitsGiven} hits] - {attackerName} - ({attackerHP} hp){ChatColors.Default}");
@@ -115,7 +120,7 @@ namespace MatchZy
             }
             catch (Exception e)
             {
-                Log($"[ShowDamageInfo FATAL] An error occurred: {e.Message}");
+                Logger.LogError($"[ShowDamageInfo FATAL] An error occurred: {e.Message}");
             }
 
         }
