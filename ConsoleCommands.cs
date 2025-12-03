@@ -78,6 +78,7 @@ namespace MatchZy
         /// Marks the player as ready for the match.
         /// </summary>
         [Command("ready", registerRaw: true)]
+        [CommandAlias("r", registerRaw: true)]
         public void OnPlayerReady(ICommandContext context)
         {
             IPlayer? player = context.Sender;
@@ -112,6 +113,7 @@ namespace MatchZy
         /// Marks the player as not ready for the match.
         /// </summary>
         [Command("unready", registerRaw: true)]
+        [CommandAlias("ur", registerRaw: true)]
         [CommandAlias("notready", registerRaw: true)]
         public void OnPlayerUnReady(ICommandContext context)
         {

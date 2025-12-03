@@ -4,12 +4,12 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 - `.ready` Marks the player ready (Alias: `.r`)
 - `.unready` Marks the player unready (Alias: `.ur`, `.notready`)
 - `.forceready` Force-readies the player's team (Only works when using Match setup using JSON/Get5)
-- `.pause` Pauses the match in freezetime (Tactical or normal pause, depends on `matchzy_use_pause_command_for_tactical_pause`).
+- `.matchzy_pause` Pauses the match in freezetime (renamed from `.pause` to avoid engine command conflict).
 - `.tech` Pauses the match in freezetime.
-- `.unpause` Request for unpausing the match. Both teams need to type .unpause to unpause the match
+- `.matchzy_unpause` Request for unpausing the match. Both teams need to type this command to unpause the match
 - `.stay` Stays on the same side (For knife winner, after the knife round)
 - `.switch`/`.swap` Switches the side (For knife winner, after the knife round)
-- `.stop` Restore the backup of the current round (Both teams need to type .stop to restore the current round)
+- `.matchzy_stop` Restore the backup of the current round (Both teams need to type this command to restore the current round)
 - `.tac` Starts a tactical timeout
 - `.coach <side>` Starts coaching the specified side. Example: `.coach t` to start coaching terrorist side!
 - `.uncoach` Leaves coaching slot
@@ -34,11 +34,11 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 - `.ct`, `.t`, `.spec` Changes player team to the requested team
 - `.fas` / `.watchme` Forces all players into spectator except the player who called this command
 - `.nobots` Removes all the bots
-- `.clear` Clears all the active smokes, molotoves and incendiaries
+- `.matchzy_clear` Clears all the active smokes, molotoves and incendiaries (renamed from `.clear` to avoid conflict)
 - `.fastforward` Fastforwards the server time to 20 seconds (Alias: `.ff`)
 - `.noflash` Toggles immunity for flashbang (it will still blind others with noflash disabled. Alias: `.noblind`)
 - `.dryrun` Turns on dry-run mode (Alias: `.dry`)
-- `.god` Turns on god mode
+- `.matchzy_god` Turns on god mode (renamed from `.god` to avoid conflict)
 - `.savenade <name> <optional description>` Saves a lineup (Alias: `.sn`)
 - `.loadnade <name>` Loads a lineup (Alias: `.sn`)
 - `.deletenade <name>` Deletes a lineup from file (Alias: `.dn`)
@@ -64,7 +64,7 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 # Admin Commands
 
 - `.start` Force starts a match.
-- `.restart` Force restarts/resets a match. (Alias: `.endmatch`, `.forceend`)
+- `.matchzy_restart` Force restarts/resets a match. (Alias: `.endmatch`, `.forceend`)
 - `.forcepause` Pauses the match as an admin (Players cannot unpause the admin-paused match). (Alias: `.fp`)
 - `.forceunpause` Force unpauses the match. (Alias: `.fup`)
 - `.restore <round>` Restores the backup of provided round number.
@@ -74,11 +74,11 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 - `.whitelist` Toggles whitelisting of players. To whitelist a player, add the steam64id in `cfg/MatchZy/whitelist.cfg`
 - `.readyrequired <number>` Sets the number of ready players required to start the match. If set to 0, all connected players will have to ready-up to start the match.
 - `.settings` Displays the current setting, like whether knife is enabled or not, value of readyrequired  players, etc.
-- `.map <mapname>` Changes the map
+- `.matchzy_map <mapname>` Changes the map
 - `.asay <message>` Say as an admin in all chat
 - `.reload_admins` Reloads admins from `admins.json`
 - `.team1 <name>` Sets name for Team 1 (CT by default)
 - `.team2 <name>` Sets name for Team 2 (Terrorist by default)
 - `.prac` Starts Practice Mode (Alias: `.tactics`)
 - `.exitprac` Exits from practice mode and loads Match mode.
-- `.rcon <command>` Sends command to the server
+- `.matchzy_rcon <command>` Sends command to the server
