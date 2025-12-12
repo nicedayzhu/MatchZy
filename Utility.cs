@@ -20,17 +20,17 @@ namespace MatchZy
     public partial class MatchZy
     {
         /// <summary>
-        /// 确保某个 cfg 文件存在于游戏可执行的目录下（csgo/cfg/MatchZy），并返回可以传给 exec 的相对路径。
-        /// 注意：CS2 的 exec 命令只能从 csgo/cfg 目录开始读取，相对路径会被自动拼成 cfg/xxx。
+        /// Ensures that a cfg file exists in the game executable directory (csgo/cfg/MatchZy) and returns a relative path that can be passed to exec.
+        /// Note: CS2's exec command can only read from the csgo/cfg directory. Relative paths are automatically combined to cfg/xxx.
         /// </summary>
-        /// <param name="fileName">例如 "config.cfg"、"warmup.cfg"</param>
-        /// <returns>可以直接用于 exec 的相对路径，例如 "MatchZy/config.cfg"</returns>
+        /// <param name="fileName">For example "config.cfg", "warmup.cfg"</param>
+        /// <returns>A relative path that can be used directly with exec, for example "MatchZy/config.cfg"</returns>
         private string EnsureCfgInGameCfgDirectory(string fileName)
         {
-            // 1. 先通过我们自己的查找逻辑拿到“源”cfg 路径（插件 data / 资源 / 旧路径）
+            // 1. First get the source cfg path through our own lookup logic (plugin data / resources / legacy path)
             string sourcePath = GetConfigFilePath(fileName);
 
-            // 2. 目标路径：csgo/cfg/MatchZy/fileName
+            // 2. Target path: csgo/cfg/MatchZy/fileName
             string gameCfgMatchZyDir = Path.Combine(Core.CSGODirectory, "cfg", "MatchZy");
             if (!Directory.Exists(gameCfgMatchZyDir))
             {
@@ -39,12 +39,12 @@ namespace MatchZy
 
             string destPath = Path.Combine(gameCfgMatchZyDir, fileName);
 
-            // 3. 如果源文件存在，就拷贝到 csgo/cfg/MatchZy 目录
+            // 3. If the source file exists, copy it to the csgo/cfg/MatchZy directory
             if (File.Exists(sourcePath))
             {
                 try
                 {
-                    // 如果源和目标本身就是同一个文件，就不要复制，避免自我覆盖导致的占用问题
+                    // If source and target are the same file, do not copy to avoid self-overwriting that causes file locking issues
                     string srcFull = Path.GetFullPath(sourcePath);
                     string dstFull = Path.GetFullPath(destPath);
                     if (!srcFull.Equals(dstFull, StringComparison.OrdinalIgnoreCase))
@@ -54,20 +54,20 @@ namespace MatchZy
                 }
                 catch (IOException ex)
                 {
-                    // 如果文件正被其他进程占用，不要让插件加载失败，只打日志提示
+                    // If the file is locked by another process, do not fail plugin load, just log a warning
                     Logger.LogWarning($"[EnsureCfgInGameCfgDirectory] Failed to copy cfg from {sourcePath} to {destPath}: {ex.Message}");
                 }
             }
 
-            // 4. 返回给 exec 用的相对路径（从 cfg/ 开始算起）
+            // 4. Return the relative path for use with exec (calculated from cfg/ onwards)
             return $"MatchZy/{fileName}";
         }
 
-        // Config file paths - 优先顺序：
-        // 1. (swRoot)/addons/swiftlys2/data/matchzy/config/<file>      —— 用户运行时覆盖
-        // 2. (swRoot)/addons/swiftlys2/plugins/MatchZy/cfg/MatchZy/<file> —— 插件自带 cfg（源码中的 cfg/MatchZy）
-        // 3. (swRoot)/addons/swiftlys2/plugins/MatchZy/resources/config/<file> —— 旧的 / 仅 json(jsonc) 等
-        // 4. (兼容) (swRoot)/game/csgo/cfg/MatchZy/<file>
+        // Config file paths - Priority order:
+        // 1. (swRoot)/addons/swiftlys2/data/matchzy/config/<file>      —— User runtime override
+        // 2. (swRoot)/addons/swiftlys2/plugins/MatchZy/cfg/MatchZy/<file> —— Plugin built-in cfg (cfg/MatchZy in source code)
+        // 3. (swRoot)/addons/swiftlys2/plugins/MatchZy/resources/config/<file> —— Legacy / JSON (JSONC) only
+        // 4. (Backward compatibility) (swRoot)/game/csgo/cfg/MatchZy/<file>
         private string GetConfigFilePath(string fileName)
         {
             // First check if user has customized the file in PluginDataDirectory
@@ -77,14 +77,14 @@ namespace MatchZy
                 return userConfigPath;
             }
 
-            // 其次：插件目录下的 cfg/MatchZy（和原来 CSSharp 插件结构保持一致）
+            // Next: cfg/MatchZy in the plugin directory (maintains consistency with the original CSSharp plugin structure)
             string pluginCfgPath = Path.Combine(Core.PluginPath, "cfg", "MatchZy", fileName);
             if (File.Exists(pluginCfgPath))
             {
                 return pluginCfgPath;
             }
 
-            // 再次：resources/config（主要放 json / jsonc）
+            // Then: resources/config (primarily for JSON / JSONC files)
             string resourcePath = Path.Combine(Core.PluginPath, "resources", "config", fileName);
             if (File.Exists(resourcePath))
             {
@@ -1648,28 +1648,28 @@ namespace MatchZy
             }
         }
 
-        // SetConvarValue for SwiftlyS2 - 根据名字安全设置 convar 值
+        // SetConvarValue for SwiftlyS2 - Safely set convar value by name
         public void SetConvarValue(string cvarName, string value)
         {
             try
             {
-                // 1) 先尝试 string（如 hostname、mp_teamname_1/2 等）
+                // 1) Try string first (such as hostname, mp_teamname_1/2, etc.)
                 try
                 {
                     var stringCvar = Core.ConVar.Find<string>(cvarName);
                     if (stringCvar != null)
                     {
-                        // 立即生效，避免排到内部队列里延迟应用
+                        // Take effect immediately, avoid queuing for delayed application
                         stringCvar.SetInternal(value);
                         return;
                     }
                 }
                 catch
                 {
-                    // 类型不匹配时忽略，继续其它类型
+                    // Ignore when type does not match, continue with other types
                 }
 
-                // 2) 尝试 bool（mp_friendlyfire、tv_enable 等）
+                // 2) Try bool (mp_friendlyfire, tv_enable, etc.)
                 try
                 {
                     var boolCvar = Core.ConVar.Find<bool>(cvarName);
@@ -1697,7 +1697,7 @@ namespace MatchZy
                 {
                 }
 
-                // 3) 尝试 int
+                // 3) Try int
                 try
                 {
                     var intCvar = Core.ConVar.Find<int>(cvarName);
@@ -1711,7 +1711,7 @@ namespace MatchZy
                 {
                 }
 
-                // 4) 尝试 float
+                // 4) Try float
                 try
                 {
                     var floatCvar = Core.ConVar.Find<float>(cvarName);
@@ -1737,7 +1737,7 @@ namespace MatchZy
             {
                 string value = matchConfig.ChangedCvars[key];
                 Logger.LogInformation($"[ExecuteChangedConvars] Setting convar {key} = \"{value}\"");
-                // 使用 SwiftlyS2 的 ConVar API，而不是文本命令，确保服务端 cvar 实际被修改
+                // Use SwiftlyS2's ConVar API instead of text commands to ensure server-side cvars are actually modified
                 SetConvarValue(key, value);
             }
         }
@@ -1748,7 +1748,7 @@ namespace MatchZy
             {
                 string value = matchConfig.OriginalCvars[key];
                 Logger.LogInformation($"[ResetChangedConvars] Restoring convar {key} = \"{value}\"");
-                // 使用 SwiftlyS2 的 ConVar API 还原原始值
+                // Use SwiftlyS2's ConVar API to restore the original value
                 SetConvarValue(key, value);
             }
         }
@@ -1776,7 +1776,7 @@ namespace MatchZy
             if (hostname == "" || hostname == "\"\"") return;
             string formattedHostname = FormatCvarValue(hostname);
             Logger.LogInformation($"UPDATING HOSTNAME TO: {formattedHostname}");
-            // 使用引号包裹，防止带空格的主机名被拆成多个参数
+            // Use quotes to wrap to prevent hostnames with spaces from being split into multiple parameters
             Core.Engine.ExecuteCommand($"hostname \"{formattedHostname}\"");
         }
 

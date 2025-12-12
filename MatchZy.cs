@@ -142,7 +142,7 @@ namespace MatchZy
         public override void Load(bool hotReload) {
             LoadAdmins();
 
-            // Initialize permissions.jsonc configuration (示例配置，权限也可以完全使用 SwiftlyS2 全局 permissions.jsonc 来管理)
+            // Initialize permissions.jsonc configuration (Sample configuration, permissions can also be completely managed using SwiftlyS2 global permissions.jsonc)
             Core.Configuration.InitializeJsonWithModel<PermissionsConfiguration>("permissions.jsonc", "Permissions");
 
             // Initialize database using SwiftlyS2 DatabaseService (optional stats DB)
@@ -151,7 +151,7 @@ namespace MatchZy
             database.InitializeDatabase(Core.PluginDataDirectory, Core.CSGODirectory);
 
             // This sets default config ConVars
-            // 使用 cfg/MatchZy/config.cfg 作为模板（如有 data/matchzy/config/config.cfg 则优先生效）
+            // Use cfg/MatchZy/config.cfg as a template (if data/matchzy/config/config.cfg exists, it takes priority)
             string configExecPath = EnsureCfgInGameCfgDirectory("config.cfg");
             Logger.LogInformation($"[Load] Executing config CFG via exec {configExecPath}");
             Core.Engine.ExecuteCommand($"exec {configExecPath}");
