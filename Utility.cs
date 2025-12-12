@@ -1519,15 +1519,14 @@ namespace MatchZy
         public void LoadClientNames()
         {
             string namesFileName = "Match_" + liveMatchId.ToString() + ".ini";
-            string namesFilePath = Core.CSGODirectory + "/csgo/MatchZyPlayerNames/" + namesFileName;
-            string? directoryPath = Path.GetDirectoryName(namesFilePath);
-            if (directoryPath != null)
+            // Core.CSGODirectory already points to the csgo directory in SwiftlyS2,
+            // so we create/use "MatchZyPlayerNames" directly under it.
+            string namesDirPath = Path.Combine(Core.CSGODirectory, "MatchZyPlayerNames");
+            if (!Directory.Exists(namesDirPath))
             {
-                if (!Directory.Exists(directoryPath))
-                {
-                    Directory.CreateDirectory(directoryPath);
-                }
+                Directory.CreateDirectory(namesDirPath);
             }
+            string namesFilePath = Path.Combine(namesDirPath, namesFileName);
 
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("\"Names\"");
@@ -1539,7 +1538,7 @@ namespace MatchZy
 
             sb.AppendLine("}");
             File.WriteAllText(namesFilePath, sb.ToString());
-            Core.Engine.ExecuteCommand($"sv_load_forced_client_names_file MatchZyPlayerNames/" + namesFileName);
+            Core.Engine.ExecuteCommand($"sv_load_forced_client_names_file MatchZyPlayerNames/{namesFileName}");
         }
 
         public void WriteClientNamesInFile(StringBuilder sb, JToken? players)
@@ -1565,17 +1564,17 @@ namespace MatchZy
             return false;
         }
 
-        // GetConvarStringValue for SwiftlyS2 - overloads for different types
+        // GetConvarStringValue for SwiftlyS2 - helpers for safely reading convars
         public string GetConvarStringValue<T>(SwiftlyS2.Shared.Convars.IConVar<T>? cvar) where T : struct
         {
+            if (cvar == null) return "";
             try
             {
-                if (cvar == null) return "";
                 return cvar.Value.ToString() ?? "";
             }
             catch (Exception ex)
             {
-                Logger.LogInformation($"[GetConvarStringValue - FATAL] Exception occurred: {ex.Message}");
+                Logger.LogInformation($"[GetConvarStringValue] Failed to read value for convar of type {typeof(T).Name}: {ex.Message}");
                 return "";
             }
         }
@@ -1583,89 +1582,152 @@ namespace MatchZy
         // Overload for string type
         public string GetConvarStringValue(SwiftlyS2.Shared.Convars.IConVar<string>? cvar)
         {
+            if (cvar == null) return "";
             try
             {
-                if (cvar == null) return "";
                 return cvar.Value ?? "";
             }
             catch (Exception ex)
             {
-                Logger.LogInformation($"[GetConvarStringValue - FATAL] Exception occurred: {ex.Message}");
+                Logger.LogInformation($"[GetConvarStringValue] Failed to read value for string convar: {ex.Message}");
                 return "";
             }
         }
 
-        // Generic overload that tries to find the convar by name
+        // Overload that tries to find the convar by name using SwiftlyS2's typed API.
+        // We need to be defensive here because Find<T> throws when T does not match the real type.
         public string GetConvarStringValue(string cvarName)
         {
             try
             {
-                // Try different types
-                var boolCvar = Core.ConVar.Find<bool>(cvarName);
-                if (boolCvar != null) return boolCvar.Value.ToString();
-                
-                var intCvar = Core.ConVar.Find<int>(cvarName);
-                if (intCvar != null) return intCvar.Value.ToString();
-                
-                var floatCvar = Core.ConVar.Find<float>(cvarName);
-                if (floatCvar != null) return floatCvar.Value.ToString();
-                
-                var stringCvar = Core.ConVar.Find<string>(cvarName);
-                if (stringCvar != null) return stringCvar.Value ?? "";
-                
+                // Try string first for typical text-based cvars like hostname.
+                try
+                {
+                    var stringCvar = Core.ConVar.Find<string>(cvarName);
+                    if (stringCvar != null) return stringCvar.Value ?? "";
+                }
+                catch (Exception)
+                {
+                    // Type mismatch is expected when the real type is not string; ignore and try next.
+                }
+
+                // Then try bool / int / float in order, swallowing type mismatches.
+                try
+                {
+                    var boolCvar = Core.ConVar.Find<bool>(cvarName);
+                    if (boolCvar != null) return boolCvar.Value.ToString();
+                }
+                catch (Exception)
+                {
+                }
+
+                try
+                {
+                    var intCvar = Core.ConVar.Find<int>(cvarName);
+                    if (intCvar != null) return intCvar.Value.ToString();
+                }
+                catch (Exception)
+                {
+                }
+
+                try
+                {
+                    var floatCvar = Core.ConVar.Find<float>(cvarName);
+                    if (floatCvar != null) return floatCvar.Value.ToString();
+                }
+                catch (Exception)
+                {
+                }
+
                 return "";
             }
             catch (Exception ex)
             {
-                Logger.LogInformation($"[GetConvarStringValue - FATAL] Exception occurred: {ex.Message}");
+                Logger.LogInformation($"[GetConvarStringValue] Failed to resolve convar '{cvarName}': {ex.Message}");
                 return "";
             }
         }
 
-        // SetConvarValue for SwiftlyS2 - set convar by name
+        // SetConvarValue for SwiftlyS2 - 根据名字安全设置 convar 值
         public void SetConvarValue(string cvarName, string value)
         {
             try
             {
-                // Try different types
-                var boolCvar = Core.ConVar.Find<bool>(cvarName);
-                if (boolCvar != null)
+                // 1) 先尝试 string（如 hostname、mp_teamname_1/2 等）
+                try
                 {
-                    if (bool.TryParse(value, out bool boolValue))
+                    var stringCvar = Core.ConVar.Find<string>(cvarName);
+                    if (stringCvar != null)
                     {
-                        boolCvar.Value = boolValue;
-                    }
-                    else if (int.TryParse(value, out int intValue) && intValue >= 1)
-                    {
-                        boolCvar.Value = true;
+                        // 立即生效，避免排到内部队列里延迟应用
+                        stringCvar.SetInternal(value);
                         return;
                     }
                 }
-                
-                var intCvar = Core.ConVar.Find<int>(cvarName);
-                if (intCvar != null && int.TryParse(value, out int intVal))
+                catch
                 {
-                    intCvar.Value = intVal;
-                    return;
+                    // 类型不匹配时忽略，继续其它类型
                 }
-                
-                var floatCvar = Core.ConVar.Find<float>(cvarName);
-                if (floatCvar != null && float.TryParse(value, out float floatVal))
+
+                // 2) 尝试 bool（mp_friendlyfire、tv_enable 等）
+                try
                 {
-                    floatCvar.Value = floatVal;
-                    return;
+                    var boolCvar = Core.ConVar.Find<bool>(cvarName);
+                    if (boolCvar != null)
+                    {
+                        bool target;
+                        if (bool.TryParse(value, out bool boolValue))
+                        {
+                            target = boolValue;
+                        }
+                        else if (int.TryParse(value, out int intValue) && intValue >= 1)
+                        {
+                            target = true;
+                        }
+                        else
+                        {
+                            target = false;
+                        }
+
+                        boolCvar.SetInternal(target);
+                        return;
+                    }
                 }
-                
-                var stringCvar = Core.ConVar.Find<string>(cvarName);
-                if (stringCvar != null)
+                catch
                 {
-                    stringCvar.Value = value;
-                    return;
+                }
+
+                // 3) 尝试 int
+                try
+                {
+                    var intCvar = Core.ConVar.Find<int>(cvarName);
+                    if (intCvar != null && int.TryParse(value, out int intVal))
+                    {
+                        intCvar.SetInternal(intVal);
+                        return;
+                    }
+                }
+                catch
+                {
+                }
+
+                // 4) 尝试 float
+                try
+                {
+                    var floatCvar = Core.ConVar.Find<float>(cvarName);
+                    if (floatCvar != null && float.TryParse(value, out float floatVal))
+                    {
+                        floatCvar.SetInternal(floatVal);
+                        return;
+                    }
+                }
+                catch
+                {
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogInformation($"[SetConvarValue - FATAL] Exception occurred: {ex.Message}");
+                Logger.LogInformation($"[SetConvarValue] Failed to set convar '{cvarName}' to '{value}': {ex.Message}");
             }
         }
 
@@ -1674,8 +1736,9 @@ namespace MatchZy
             foreach (string key in matchConfig.ChangedCvars.Keys)
             {
                 string value = matchConfig.ChangedCvars[key];
-                Logger.LogInformation($"[ExecuteChangedConvars] Execing: {key} \"{value}\"");
-                Core.Engine.ExecuteCommand($"{key} \"{value}\"");
+                Logger.LogInformation($"[ExecuteChangedConvars] Setting convar {key} = \"{value}\"");
+                // 使用 SwiftlyS2 的 ConVar API，而不是文本命令，确保服务端 cvar 实际被修改
+                SetConvarValue(key, value);
             }
         }
 
@@ -1684,8 +1747,9 @@ namespace MatchZy
             foreach (string key in matchConfig.OriginalCvars.Keys)
             {
                 string value = matchConfig.OriginalCvars[key];
-                Logger.LogInformation($"[ResetChangedConvars] Execing: {key} \"{value}\"");
-                Core.Engine.ExecuteCommand($"{key} {value}");
+                Logger.LogInformation($"[ResetChangedConvars] Restoring convar {key} = \"{value}\"");
+                // 使用 SwiftlyS2 的 ConVar API 还原原始值
+                SetConvarValue(key, value);
             }
         }
 
@@ -1712,7 +1776,8 @@ namespace MatchZy
             if (hostname == "" || hostname == "\"\"") return;
             string formattedHostname = FormatCvarValue(hostname);
             Logger.LogInformation($"UPDATING HOSTNAME TO: {formattedHostname}");
-            Core.Engine.ExecuteCommand($"hostname {formattedHostname}");
+            // 使用引号包裹，防止带空格的主机名被拆成多个参数
+            Core.Engine.ExecuteCommand($"hostname \"{formattedHostname}\"");
         }
 
         // GetGameRules for SwiftlyS2
