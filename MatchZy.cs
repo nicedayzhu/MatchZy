@@ -138,8 +138,9 @@ namespace MatchZy
 
         // SQLite/MySQL Database (via SwiftlyS2 IDatabaseService)
         private Database database = new();
-    
-        public override void Load(bool hotReload) {
+
+        public override void Load(bool hotReload)
+{
             LoadAdmins();
 
             // Initialize permissions.jsonc configuration (Sample configuration, permissions can also be completely managed using SwiftlyS2 global permissions.jsonc)
@@ -164,9 +165,12 @@ namespace MatchZy
             // Register all event handlers
             RegisterEventHandlers();
 
-            if (!hotReload) {
+            if (!hotReload)
+            {
                 AutoStart();
-            } else {
+            }
+            else
+            {
                 // Plugin should not be reloaded while a match is live (this would messup with the match flags which were set)
                 // Only hot-reload the plugin if you are testing something and don't want to restart the server time and again.
                 UpdatePlayersMap();
@@ -191,8 +195,13 @@ namespace MatchZy
                 var fallbackMetadata = GetMetadata();
                 Console.WriteLine($"[{fallbackMetadata?.Name ?? "MatchZy"} {fallbackMetadata?.Version ?? "0.8.15"} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
             }
+            Core.Event.OnConVarValueChanged += ( @event ) =>
+            {
+                Logger.LogInformation(
+                    $"ConVar {@event.ConVarName} changed from {@event.OldValue} to {@event.NewValue} by player {@event.PlayerId}");
+            };
         }
-        
+
         public override void Unload()
         {
             // Cancel all timers

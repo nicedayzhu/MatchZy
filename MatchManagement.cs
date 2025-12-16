@@ -354,7 +354,9 @@ namespace MatchZy
             // This is done before starting warmup so that cvars like get5_remote_log_url are set properly to send the events
             ExecuteChangedConvars();
 
+            Logger.LogInformation($"[LoadMatchFromJSON] StartWarmup() +++ ");
             StartWarmup();
+            Logger.LogInformation($"[LoadMatchFromJSON] StartWarmup() --- ");
 
             isMatchSetup = true;
 
@@ -362,7 +364,7 @@ namespace MatchZy
 
             SetTeamNames();
             UpdatePlayersMap();
-            UpdateHostname();
+            // UpdateHostname();
 
             var seriesStartedEvent = new MatchZySeriesStartedEvent
             {

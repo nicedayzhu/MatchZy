@@ -1648,97 +1648,13 @@ namespace MatchZy
             }
         }
 
-        // SetConvarValue for SwiftlyS2 - Safely set convar value by name
-        public void SetConvarValue(string cvarName, string value)
-        {
-            try
-            {
-                // 1) Try string first (such as hostname, mp_teamname_1/2, etc.)
-                try
-                {
-                    var stringCvar = Core.ConVar.Find<string>(cvarName);
-                    if (stringCvar != null)
-                    {
-                        // Take effect immediately, avoid queuing for delayed application
-                        stringCvar.SetInternal(value);
-                        return;
-                    }
-                }
-                catch
-                {
-                    // Ignore when type does not match, continue with other types
-                }
-
-                // 2) Try bool (mp_friendlyfire, tv_enable, etc.)
-                try
-                {
-                    var boolCvar = Core.ConVar.Find<bool>(cvarName);
-                    if (boolCvar != null)
-                    {
-                        bool target;
-                        if (bool.TryParse(value, out bool boolValue))
-                        {
-                            target = boolValue;
-                        }
-                        else if (int.TryParse(value, out int intValue) && intValue >= 1)
-                        {
-                            target = true;
-                        }
-                        else
-                        {
-                            target = false;
-                        }
-
-                        boolCvar.SetInternal(target);
-                        return;
-                    }
-                }
-                catch
-                {
-                }
-
-                // 3) Try int
-                try
-                {
-                    var intCvar = Core.ConVar.Find<int>(cvarName);
-                    if (intCvar != null && int.TryParse(value, out int intVal))
-                    {
-                        intCvar.SetInternal(intVal);
-                        return;
-                    }
-                }
-                catch
-                {
-                }
-
-                // 4) Try float
-                try
-                {
-                    var floatCvar = Core.ConVar.Find<float>(cvarName);
-                    if (floatCvar != null && float.TryParse(value, out float floatVal))
-                    {
-                        floatCvar.SetInternal(floatVal);
-                        return;
-                    }
-                }
-                catch
-                {
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogInformation($"[SetConvarValue] Failed to set convar '{cvarName}' to '{value}': {ex.Message}");
-            }
-        }
-
         public void ExecuteChangedConvars()
         {
             foreach (string key in matchConfig.ChangedCvars.Keys)
             {
                 string value = matchConfig.ChangedCvars[key];
                 Logger.LogInformation($"[ExecuteChangedConvars] Setting convar {key} = \"{value}\"");
-                // Use SwiftlyS2's ConVar API instead of text commands to ensure server-side cvars are actually modified
-                SetConvarValue(key, value);
+                Core.Engine.ExecuteCommand($"{key} \"{value}\"");
             }
         }
 
@@ -1748,8 +1664,7 @@ namespace MatchZy
             {
                 string value = matchConfig.OriginalCvars[key];
                 Logger.LogInformation($"[ResetChangedConvars] Restoring convar {key} = \"{value}\"");
-                // Use SwiftlyS2's ConVar API to restore the original value
-                SetConvarValue(key, value);
+                Core.Engine.ExecuteCommand($"{key} {value}");
             }
         }
 
